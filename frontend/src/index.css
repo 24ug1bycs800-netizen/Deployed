@@ -1,0 +1,153 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================
+   PREMIUM CINEMA THEME
+   ========================= */
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: #0f1115;
+    color: #ffffff;
+    font-family: "Inter", sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Poppins", sans-serif;
+  }
+
+  ::selection {
+    background: #d4af37;
+    color: #000000;
+  }
+}
+
+/* =========================
+   PREMIUM CARDS
+   ========================= */
+
+.premium-card {
+  background: #222733;
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+
+.premium-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* =========================
+   PREMIUM BUTTON
+   ========================= */
+
+.btn-gold {
+  background: #d4af37;
+  color: #000;
+  font-weight: 600;
+  border-radius: 999px;
+  transition: all 0.25s ease;
+}
+
+.btn-gold:hover {
+  background: #f4d03f;
+  transform: translateY(-2px);
+}
+
+/* =========================
+   HERO OVERLAYS
+   ========================= */
+
+.gradient-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(15, 17, 21, 1) 0%,
+    rgba(15, 17, 21, 0.85) 40%,
+    rgba(15, 17, 21, 0.15) 100%
+  );
+}
+
+.gradient-overlay-horizontal {
+  background: linear-gradient(
+    to right,
+    rgba(15, 17, 21, 1) 0%,
+    rgba(15, 17, 21, 0.75) 45%,
+    rgba(15, 17, 21, 0.1) 100%
+  );
+}
+
+/* =========================
+   TICKET CARD
+   ========================= */
+
+.ticket-card {
+  background:
+    radial-gradient(circle at 0% 50%, transparent 12px, #222733 13px),
+    radial-gradient(circle at 100% 50%, transparent 12px, #222733 13px);
+  border-left: 1px dashed rgba(212, 175, 55, 0.25);
+  border-right: 1px dashed rgba(212, 175, 55, 0.25);
+}
+
+/* =========================
+   SCROLLBAR
+   ========================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f4757;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
+}
+
+/* =========================
+   ANIMATIONS
+   ========================= */
+
+.fade-up {
+  animation: fadeUp 0.5s ease;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
