@@ -1,53 +1,80 @@
-import express from 'express';
-import cors from 'cors';
+import express from "express";
+import cors from "cors";
 import path from "path";
-import * as dotenv from 'dotenv';
-import authRoutes from './routes/authRoutes';
-import movieRoutes from './routes/movieRoutes';
-import bookingRoutes from './routes/bookingRoutes';
-import groupRoutes from './routes/groupRoutes';
-import adminRoutes from './routes/adminRoutes';
+import * as dotenv from "dotenv";
+import seatLockRoutes from "./routes/seatLockRoutes";
+import authRoutes from "./routes/authRoutes";
+import movieRoutes from "./routes/movieRoutes";
+import bookingRoutes from "./routes/bookingRoutes";
+import groupRoutes from "./routes/groupRoutes";
+import adminRoutes from "./routes/adminRoutes";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-app.use("/images", express.static(path.join(process.cwd(), "images")));
-// MIDDLEWARES
-app.use(cors({
-  origin: '*', // For complete development compatibility
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+
+/* ---------------- MIDDLEWARES ---------------- */
+
+// CORS (ONLY ONCE - CORRECT POSITION)
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  "/api/seat-locks",
+  seatLockRoutes
+);
+// Static files
+app.use("/images", express.static(path.join(process.cwd(), "images")));
 app.use("/uploads", express.static("uploads"));
+app.use("/assets", express.static("../frontend/public/assets"));
+console.log({
+  authRoutes,
+  movieRoutes,
+  bookingRoutes,
+  groupRoutes,
+  adminRoutes,
+});
+/* ---------------- HEALTH CHECK ---------------- */
 
-// STATIC ASSETS
-// Allows backend to serve frontend movie posters if required
-app.use('/assets', express.static('../frontend/public/assets'));
-
-// HEALTH CHECK
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', service: 'CineCircle API', time: new Date() });
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "CineCircle API",
+    time: new Date(),
+  });
 });
 
-// ROUTE MOUNTING
-app.use('/api/auth', authRoutes);
-app.use('/api', movieRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/groups', groupRoutes);
-app.use('/api/admin', adminRoutes);
+/* ---------------- ROUTES ---------------- */
 
-// GLOBAL ERROR HANDLER
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled server error:', err);
-  res.status(500).json({ error: 'Internal server error occurred on API service' });
-});
 app.get("/", (req, res) => {
   res.send("🎬 Movie Backend is running");
 });
-// START EXPRESS
+
+// API ROUTES
+app.use("/api/auth", authRoutes);
+app.use("/api", movieRoutes);        // ⚠️ IMPORTANT: /api depends on movieRoutes structure
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/groups", groupRoutes);
+app.use("/api/admin", adminRoutes);
+
+/* ---------------- ERROR HANDLER ---------------- */
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("Unhandled server error:", err);
+  res.status(500).json({
+    error: "Internal server error occurred on API service",
+  });
+});
+
+/* ---------------- START SERVER ---------------- */
+
 app.listen(PORT, () => {
   console.log(`🎬 CineCircle Backend running on http://localhost:${PORT}`);
 });

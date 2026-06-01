@@ -37,12 +37,27 @@ interface Theatre {
   address: string;
 }
 
-// ✅ Added getImageUrl helper
 const getImageUrl = (url?: string) => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
   return `http://localhost:5000${url}`;
 };
+
+// ─── GOLD SECTION HEADING ─────────────────────────────────────────────────────
+const SectionHeading: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon, label }) => (
+  <div className="flex items-center gap-3 mb-8">
+    <div
+      className="p-2 rounded-lg"
+      style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.18)" }}
+    >
+      {icon}
+    </div>
+    <div>
+      <h2 className="text-xl font-black text-white tracking-wide">{label}</h2>
+      <div className="mt-1 w-6 h-0.5 rounded-full" style={{ background: "#d4af37" }} />
+    </div>
+  </div>
+);
 
 export const Home: React.FC = () => {
   const { selectedCity } = useCityStore();
@@ -58,7 +73,6 @@ export const Home: React.FC = () => {
       try {
         const nowRes = await api.get("/movies?isNowShowing=true");
         setNowShowing(nowRes.data.movies);
-
         const soonRes = await api.get("/movies?isNowShowing=false");
         setComingSoon(soonRes.data.movies);
       } catch (err) {
@@ -80,7 +94,6 @@ export const Home: React.FC = () => {
     fetchTheatres();
   }, [selectedCity]);
 
-  // Rotate Carousel Banners
   useEffect(() => {
     if (nowShowing.length === 0) return;
     const interval = setInterval(() => {
@@ -90,247 +103,349 @@ export const Home: React.FC = () => {
   }, [nowShowing]);
 
   const activeHero = nowShowing[heroIdx];
-
-  const handleNextHero = () => {
-    setHeroIdx((prev) => (prev + 1) % Math.min(nowShowing.length, 3));
-  };
-
-  const handlePrevHero = () => {
-    setHeroIdx(
-      (prev) =>
-        (prev - 1 + Math.min(nowShowing.length, 3)) %
-        Math.min(nowShowing.length, 3),
-    );
-  };
+  const handleNextHero = () => setHeroIdx((prev) => (prev + 1) % Math.min(nowShowing.length, 3));
+  const handlePrevHero = () => setHeroIdx((prev) => (prev - 1 + Math.min(nowShowing.length, 3)) % Math.min(nowShowing.length, 3));
 
   return (
-    <div className="bg-[#0F1115] text-white pb-20 font-poppins min-h-screen">
-      {/* 1. HERO SLIDING BANNER */}
-      {activeHero && (
-        <div className="relative h-[80vh] w-full overflow-hidden flex items-end">
-          {/* Banner Backdrop */}
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out scale-105 filter brightness-50"
-            style={{
-              // ✅ Fixed: use getImageUrl
-              backgroundImage: `url(${getImageUrl(activeHero.backdropUrl || activeHero.posterUrl)})`,
-            }}
-          ></div>
-          <div className="absolute inset-0 gradient-overlay"></div>
-          <div className="absolute inset-0 gradient-overlay-horizontal hidden md:block"></div>
+    <div className="bg-[#080808] text-white pb-24 font-poppins min-h-screen relative">
+      {/* FILM GRAIN OVERLAY */}
+      <div
+        className="fixed inset-0 opacity-[0.025] pointer-events-none z-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
 
-          {/* Banner details */}
-          <div className="relative z-10 px-6 sm:px-12 pb-12 w-full max-w-4xl animate-fade-in">
-            <span className="px-3 py-1 bg-primary text-white text-xs font-bold rounded-full mb-4 inline-block tracking-wider shadow-xl animate-pulse">
-              NOW SHOWING
-            </span>
-            <h1 className="text-5xl md:text-7xl font-black text-white leading-tight mb-6 tracking-tight">
+      {/* ── 1. HERO BANNER ──────────────────────────────────────────────── */}
+      {activeHero && (
+        <div className="relative h-[85vh] w-full overflow-hidden flex items-end">
+          {/* BACKDROP */}
+          <div
+            className="absolute inset-0 bg-cover bg-center scale-105 transition-all duration-1000"
+            style={{
+              backgroundImage: `url(${getImageUrl(activeHero.backdropUrl || activeHero.posterUrl)})`,
+              filter: "brightness(0.35)",
+            }}
+          />
+
+          {/* GRADIENT OVERLAYS */}
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to top, #080808 0%, rgba(8,8,8,0.8) 40%, rgba(8,8,8,0.1) 100%)" }} />
+          <div className="absolute inset-0 hidden md:block" style={{ background: "linear-gradient(to right, #080808 0%, rgba(8,8,8,0.6) 45%, transparent 100%)" }} />
+
+          {/* SUBTLE GOLD VIGNETTE */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-px"
+            style={{ background: "linear-gradient(to right, transparent, rgba(212,175,55,0.3) 30%, rgba(212,175,55,0.3) 70%, transparent)" }}
+          />
+
+          {/* CONTENT */}
+          <div className="relative z-10 px-6 sm:px-16 pb-16 w-full max-w-5xl">
+            {/* NOW SHOWING PILL */}
+            <div className="mb-5 inline-flex items-center gap-2">
+              <div
+                className="px-3 py-1 rounded-full text-[10px] font-black tracking-[0.2em] uppercase flex items-center gap-1.5"
+                style={{
+                  background: "linear-gradient(135deg, #d4af37, #f4d03f)",
+                  color: "#000",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse inline-block" />
+                Now Showing
+              </div>
+            </div>
+
+            <h1
+              className="text-5xl md:text-7xl font-black text-white leading-none mb-5 tracking-tight"
+              style={{ textShadow: "0 4px 32px rgba(0,0,0,0.8)" }}
+            >
               {activeHero.title}
             </h1>
-            <p className="text-sm text-neutral-300 font-inter max-w-2xl mb-6 leading-relaxed hidden sm:block">
+
+            <p className="text-sm text-neutral-400 font-inter max-w-xl mb-6 leading-relaxed hidden sm:block line-clamp-2">
               {activeHero.description}
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold mb-6">
-              <span className="px-2 py-0.5 border border-neutral-700 rounded text-neutral-300">
-                {activeHero.language}
+            {/* META TAGS */}
+            <div className="flex flex-wrap items-center gap-2 mb-8">
+              {[activeHero.language, activeHero.genre.split("/")[0]].map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#aaa" }}
+                >
+                  {tag}
+                </span>
+              ))}
+              <span className="flex items-center gap-1 text-xs font-bold" style={{ color: "#d4af37" }}>
+                <Star className="w-3.5 h-3.5 fill-[#d4af37]" /> {activeHero.ratingValue}
               </span>
-              <span className="px-2 py-0.5 border border-neutral-700 rounded text-neutral-300">
-                {activeHero.genre}
-              </span>
-              <span className="flex items-center gap-1 text-accent">
-                <Star className="w-3.5 h-3.5 fill-accent" />{" "}
-                {activeHero.ratingValue}
-              </span>
-              <span className="text-neutral-400">
-                {activeHero.durationMins} Mins
-              </span>
+              <span className="text-xs text-neutral-600">{activeHero.durationMins} min</span>
             </div>
 
+            {/* CTA BUTTONS */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => navigate(`/movies/${activeHero.id}`)}
-                className="px-8 py-4 bg-primary text-black font-bold rounded-full flex items-center gap-2 shadow-xl hover:scale-105 transition-all"
+                className="px-8 py-3.5 rounded-full font-black text-sm tracking-wide flex items-center gap-2 transition-all hover:scale-105 hover:shadow-2xl"
+                style={{
+                  background: "linear-gradient(135deg, #d4af37, #f4d03f)",
+                  color: "#000",
+                  boxShadow: "0 8px 28px rgba(212,175,55,0.3)",
+                }}
               >
                 <Film className="w-4 h-4" /> Book Tickets
               </button>
               <button
-                onClick={() =>
-                  navigate(`/movies/${activeHero.id}?playTrailer=true`)
-                }
-                className="px-8 py-4 border border-primary text-primary rounded-full font-bold flex items-center gap-2 hover:bg-primary hover:text-black transition-all"
+                onClick={() => navigate(`/movies/${activeHero.id}?playTrailer=true`)}
+                className="px-8 py-3.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 backdrop-blur-sm"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(212,175,55,0.35)",
+                  color: "#d4af37",
+                }}
               >
-                <Play className="w-4 h-4 text-primary" /> Watch Trailer
+                <Play className="w-4 h-4 fill-[#d4af37]" /> Watch Trailer
               </button>
             </div>
           </div>
 
-          {/* Banner Controls */}
-          <div className="absolute right-6 bottom-12 z-20 flex gap-2">
-            <button
-              onClick={handlePrevHero}
-              className="p-2.5 rounded-full bg-neutral-900 bg-opacity-60 border border-neutral-800 hover:border-primary text-white transition-all"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleNextHero}
-              className="p-2.5 rounded-full bg-neutral-900 bg-opacity-60 border border-neutral-800 hover:border-primary text-white transition-all"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          {/* SLIDE DOTS + ARROWS */}
+          <div className="absolute right-6 bottom-14 z-20 flex flex-col items-end gap-3">
+            {/* Dots */}
+            <div className="flex gap-1.5">
+              {Array.from({ length: Math.min(nowShowing.length, 3) }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIdx(i)}
+                  className="rounded-full transition-all"
+                  style={{
+                    width: i === heroIdx ? 20 : 6,
+                    height: 6,
+                    background: i === heroIdx ? "#d4af37" : "rgba(255,255,255,0.2)",
+                  }}
+                />
+              ))}
+            </div>
+            {/* Arrows */}
+            <div className="flex gap-2">
+              {[{ onClick: handlePrevHero, icon: <ChevronLeft className="w-4 h-4" /> }, { onClick: handleNextHero, icon: <ChevronRight className="w-4 h-4" /> }].map(
+                ({ onClick, icon }, i) => (
+                  <button
+                    key={i}
+                    onClick={onClick}
+                    className="p-2 rounded-full transition-all hover:scale-110"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(212,175,55,0.2)",
+                      color: "#fff",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.6)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.2)")}
+                  >
+                    {icon}
+                  </button>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* 2. DYNAMIC LOCATION WARNING BAR */}
-      <div className="px-6 sm:px-12 py-3 bg-primary bg-opacity-10 border-y border-neutral-900 flex items-center justify-between text-xs sm:text-sm font-semibold text-primary font-inter">
-        <div className="flex items-center gap-2">
-          <Compass
-            className="w-4 h-4 text-primary animate-spin"
-            style={{ animationDuration: "6s" }}
-          />
+      {/* ── 2. CITY BAR ─────────────────────────────────────────────────── */}
+      <div
+        className="px-6 sm:px-16 py-3 flex items-center justify-between text-xs font-semibold font-inter"
+        style={{
+          background: "rgba(212,175,55,0.04)",
+          borderTop: "1px solid rgba(212,175,55,0.1)",
+          borderBottom: "1px solid rgba(212,175,55,0.1)",
+        }}
+      >
+        <div className="flex items-center gap-2" style={{ color: "#d4af37" }}>
+          <Compass className="w-4 h-4 animate-spin" style={{ animationDuration: "8s" }} />
           <span>
-            Showing options for theatres located in{" "}
-            <strong className="text-white underline">
+            Showing for{" "}
+            <strong className="text-white underline decoration-[#d4af37] underline-offset-2">
               {selectedCity.name}
             </strong>
           </span>
         </div>
-        <span className="text-neutral-500 text-xs hidden md:inline">
-          Persisted locally in storage
+        <span className="text-neutral-700 hidden md:inline tracking-widest text-[10px] uppercase">
+          Location persisted
         </span>
       </div>
 
-      <div className="text-center mb-10">
-        <h2 className="text-4xl md:text-5xl font-black text-white">
-          Experience Cinema Like Never Before
+      {/* ── HERO TAGLINE ────────────────────────────────────────────────── */}
+      <div className="text-center pt-16 pb-10 px-6">
+        <h2
+          className="text-4xl md:text-5xl font-black leading-tight tracking-tight"
+          style={{
+            background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          Experience Cinema<br />
+          <span style={{ color: "#d4af37", WebkitTextFillColor: "#d4af37" }}>Like Never Before</span>
         </h2>
-
-        <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
-          Book tickets, watch trailers and discover the latest blockbusters.
+        <p className="text-neutral-600 mt-4 max-w-md mx-auto font-inter text-sm leading-relaxed">
+          Book tickets, watch trailers and discover the latest blockbusters with your squad.
         </p>
       </div>
 
-      {/* 3. NOW SHOWING GRID */}
-      <div>
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Film className="w-5 h-5 text-primary text-premium-card" /> Now
-            Showing
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+      {/* ── 3. NOW SHOWING ──────────────────────────────────────────────── */}
+      <div className="px-6 sm:px-16 pb-16">
+        <SectionHeading icon={<Film className="w-4 h-4" style={{ color: "#d4af37" }} />} label="Now Showing" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
           {nowShowing.map((movie) => (
-            <div
+            <MovieCard
               key={movie.id}
-              onClick={() => navigate(`/movies/${movie.id}`)}
-              className="group cursor-pointer premium-card overflow-hidden"
-            >
-              <div className="relative aspect-[2/3] overflow-hidden">
-                {/* ✅ Fixed: use getImageUrl */}
-                <img
-                  src={getImageUrl(movie.posterUrl)}
-                  alt={movie.title}
-                  className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
-                />
-                <div className="absolute top-2 right-2 px-2 py-0.5 bg-black bg-opacity-70 rounded border border-neutral-800 text-[10px] text-accent flex items-center gap-0.5 font-bold">
-                  <Star className="w-2.5 h-2.5 fill-accent text-accent" />
-                  {movie.ratingValue}
+              movie={movie}
+              badge={
+                <div
+                  className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-black"
+                  style={{ background: "rgba(0,0,0,0.75)", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37" }}
+                >
+                  <Star className="w-2.5 h-2.5 fill-[#d4af37]" /> {movie.ratingValue}
                 </div>
-              </div>
-              <div className="p-4">
-                <span className="text-[10px] text-primary uppercase font-bold tracking-wider">
-                  {movie.language} • {movie.genre.split("/")[0]}
-                </span>
-                <h3 className="font-bold text-base mt-2 text-white group-hover:text-primary transition-colors">
-                  {movie.title}
-                </h3>
-                <p className="text-[10px] text-neutral-500 font-inter mt-1">
-                  Duration: {movie.durationMins} Mins
-                </p>
-              </div>
-            </div>
+              }
+              subtitle={`${movie.language} · ${movie.genre.split("/")[0]}`}
+              meta={`${movie.durationMins} min`}
+              onClick={() => navigate(`/movies/${movie.id}`)}
+              accentColor="#d4af37"
+            />
           ))}
         </div>
       </div>
 
-      {/* 4. COMING SOON GRID */}
-      <div>
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-accent" /> Coming Soon
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+      {/* ── 4. COMING SOON ──────────────────────────────────────────────── */}
+      <div className="px-6 sm:px-16 pb-16">
+        <SectionHeading
+          icon={<Calendar className="w-4 h-4" style={{ color: "#6ee7e7" }} />}
+          label="Coming Soon"
+        />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
           {comingSoon.map((movie) => (
-            <div
+            <MovieCard
               key={movie.id}
-              onClick={() => navigate(`/movies/${movie.id}`)}
-              className="group cursor-pointer premium-card overflow-hidden"
-            >
-              <div className="relative aspect-[2/3] overflow-hidden">
-                {/* ✅ Fixed: use getImageUrl */}
-                <img
-                  src={getImageUrl(movie.posterUrl)}
-                  alt={movie.title}
-                  className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
-                />
-                <div className="absolute top-2 right-2 px-2 py-1 bg-accent bg-opacity-25 rounded border border-accent border-opacity-50 text-[9px] text-accent font-bold uppercase tracking-wider">
-                  COMING SOON
+              movie={movie}
+              badge={
+                <div
+                  className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider"
+                  style={{ background: "rgba(110,231,231,0.15)", border: "1px solid rgba(110,231,231,0.3)", color: "#6ee7e7" }}
+                >
+                  Soon
                 </div>
-              </div>
-              <div className="p-4">
-                <span className="text-[10px] text-accent uppercase font-bold tracking-wider">
-                  {movie.language} • {movie.genre.split("/")[0]}
-                </span>
-                <h3 className="font-bold text-sm truncate mt-1 text-white group-hover:text-accent transition-colors">
-                  {movie.title}
-                </h3>
-                <p className="text-[10px] text-neutral-500 font-inter mt-1">
-                  Release: {movie.releaseDate}
-                </p>
-              </div>
-            </div>
+              }
+              subtitle={`${movie.language} · ${movie.genre.split("/")[0]}`}
+              meta={`Release: ${movie.releaseDate}`}
+              onClick={() => navigate(`/movies/${movie.id}`)}
+              accentColor="#6ee7e7"
+            />
           ))}
         </div>
       </div>
 
-      {/* 5. POPULAR THEATRES SECTION */}
-      <div className="premium-card p-8">
-        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-          <Compass className="w-5 h-5 text-primary" /> Popular Theatres in{" "}
-          {selectedCity.name}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {theatres.length > 0 ? (
-            theatres.map((theatre) => (
-              <div
-                key={theatre.id}
-                className="p-5 rounded-xl bg-[#1A1D24] border border-gray-700 flex items-start gap-3"
-              >
-                <div className="p-2.5 bg-primary bg-opacity-10 rounded-lg text-primary mt-1">
-                  <Film className="w-4 h-4" />
+      {/* ── 5. POPULAR THEATRES ─────────────────────────────────────────── */}
+      <div className="px-6 sm:px-16">
+        <div
+          className="rounded-2xl p-8 relative overflow-hidden"
+          style={{
+            background: "linear-gradient(160deg, #101010 0%, #0c0c0c 100%)",
+            border: "1px solid rgba(212,175,55,0.12)",
+          }}
+        >
+          {/* TOP GOLD LINE */}
+          <div
+            className="absolute top-0 left-0 right-0 h-px"
+            style={{ background: "linear-gradient(to right, transparent, rgba(212,175,55,0.4) 30%, rgba(212,175,55,0.4) 70%, transparent)" }}
+          />
+
+          <SectionHeading icon={<Compass className="w-4 h-4" style={{ color: "#d4af37" }} />} label={`Theatres in ${selectedCity.name}`} />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {theatres.length > 0 ? (
+              theatres.map((theatre) => (
+                <div
+                  key={theatre.id}
+                  className="p-5 rounded-xl flex items-start gap-3 transition-all hover:-translate-y-0.5 group"
+                  style={{
+                    background: "#0a0a0a",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)")}
+                >
+                  <div
+                    className="p-2.5 rounded-lg flex-shrink-0 mt-0.5"
+                    style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.15)" }}
+                  >
+                    <Film className="w-4 h-4" style={{ color: "#d4af37" }} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm text-white group-hover:text-[#d4af37] transition-colors">{theatre.name}</h4>
+                    <p className="text-xs text-neutral-600 font-inter mt-1 leading-relaxed">{theatre.address}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-white">
-                    {theatre.name}
-                  </h4>
-                  <p className="text-xs text-neutral-500 font-inter mt-1">
-                    {theatre.address}
-                  </p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-neutral-500 col-span-3 text-center py-6">
-              No theatres found for this location. Map is being updated.
-            </p>
-          )}
+              ))
+            ) : (
+              <p className="text-sm text-neutral-700 col-span-3 text-center py-8 font-inter">
+                No theatres found for this location.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+// ─── MOVIE CARD ───────────────────────────────────────────────────────────────
+const MovieCard: React.FC<{
+  movie: Movie;
+  badge: React.ReactNode;
+  subtitle: string;
+  meta: string;
+  onClick: () => void;
+  accentColor: string;
+}> = ({ movie, badge, subtitle, meta, onClick, accentColor }) => (
+  <div
+    className="group cursor-pointer rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-1.5"
+    style={{
+      background: "#101010",
+      border: "1px solid rgba(255,255,255,0.04)",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+    }}
+    onClick={onClick}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.borderColor = `${accentColor}55`;
+      e.currentTarget.style.boxShadow = `0 12px 40px rgba(0,0,0,0.5)`;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)";
+      e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+    }}
+  >
+    <div className="relative aspect-[2/3] overflow-hidden">
+      <img
+        src={getImageUrl(movie.posterUrl)}
+        alt={movie.title}
+        className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
+      />
+      {/* HOVER GRADIENT */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      {/* BADGE */}
+      <div className="absolute top-2 right-2">{badge}</div>
+    </div>
+
+    <div className="p-3.5">
+      <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: accentColor }}>
+        {subtitle}
+      </span>
+      <h3 className="font-black text-sm mt-1.5 text-white group-hover:text-[#d4af37] transition-colors leading-snug line-clamp-2">
+        {movie.title}
+      </h3>
+      <p className="text-[9px] text-neutral-700 font-inter mt-1.5">{meta}</p>
+    </div>
+  </div>
+);

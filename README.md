@@ -1,150 +1,146 @@
 # CineCircle 🎬
 
-CineCircle is a premium, production-ready, full-stack movie ticket booking platform that solves group coordination difficulties. While traditional booking applications focus exclusively on individual bookings, CineCircle introduces a unique **Collaborative Group Movie Planning System** featuring shared invite codes, real-time voting (on movies, theatres, and showtimes), and coordinated seat selections.
+## Mini Project Overview
 
-Designed with a premium dark cinematic aesthetic (Netflix + IMAX inspired), this project is **DBMS-viva ready**, featuring a highly robust relational schema, full type safety, and a **Dual Database Fallback engine** that runs instantly without external database configurations.
+CineCircle is a full-stack movie ticket booking web application developed as a mini project. The system allows users to browse movies, select showtimes, choose seats, book tickets, manage bookings, and collaborate with friends through group movie planning.
 
----
-
-## 🚀 Unique Selling Point (USP)
-
-### Group Movie Planning System
-1. **Create Group Room**: Click "Plan in Group" from any movie card. Generates a 6-character room code.
-2. **Invite Friends**: Share the secure link `http://localhost:3000/group/:inviteCode`.
-3. **Vote Movie**: Members vote on the pool of Now Showing films.
-4. **Vote Theatre & Showtime**: Members vote on preferred cinema locations and schedules.
-5. **Interactive Results**: Dynamic animated progress bars display real-time member consensus.
-6. **Coordinated Seats**: Select seats together on the interactive screen matrix.
-7. **Book & Confirm**: Instantly simulated payments generate downloadable cinematic passes.
+The project aims to provide a modern and user-friendly movie booking experience while demonstrating concepts of web development, database management, authentication, and online payment integration.
 
 ---
 
-## 📊 DBMS Viva Presentation Guide (DB Schema)
+## Objectives
 
-CineCircle features a high-fidelity relational database structure suitable for academic viva and industry presentations.
-
-### Relational Schema Diagram (Mermaid ER)
-
-```mermaid
-erDiagram
-    users ||--o{ bookings : places
-    users ||--o{ group_rooms : creates
-    users ||--o{ group_members : joins
-    users ||--o{ votes : casts
-    users ||--o{ reviews : writes
-    users ||--o{ wishlist : adds
-    
-    cities ||--o{ theatres : houses
-    theatres ||--o{ screens : has
-    screens ||--o{ shows : hosts
-    screens ||--o{ seats : configures
-    
-    movies ||--o{ shows : schedules
-    movies ||--o{ reviews : receives
-    movies ||--o{ wishlist : target
-    
-    shows ||--o{ bookings : has
-    seats ||--o{ booking_seats : linked
-    bookings ||--o{ booking_seats : contains
-    bookings ||--o{ payments : tracks
-```
-
-### Database Tables Descriptions
-
-1. **`users`**: Customer and Admin records.
-   - Primary Key: `id` (Serial)
-   - Unique constraints: `email`
-   - Attributes: `password_hash`, `full_name`, `role` (`user` | `admin`), `profile_pic`
-2. **`cities`**: Persistence for India location-based routers.
-   - Primary Key: `id` (Serial)
-   - Unique constraints: `slug`
-3. **`movies`**: Titles metadata catalog.
-   - Primary Key: `id` (Serial)
-   - Attributes: `title`, `genre`, `language`, `duration_mins`, `rating` (`U`, `UA`, `A`), `poster_url`, `is_now_showing`
-4. **`theatres`**: Cinemas locations records.
-   - Foreign Key: `city_id` references `cities.id` (1:N cascade)
-5. **`screens`**: Screen halls inside specific theatres.
-   - Foreign Key: `theatre_id` references `theatres.id` (1:N cascade)
-   - Attributes: `type` (`IMAX` | `2D` | `3D`)
-6. **`shows`**: Showtime schedule slots matching movies to screens.
-   - Foreign Keys: `movie_id` references `movies.id`, `screen_id` references `screens.id`
-7. **`seats`**: Coordinated layout matrices.
-   - Category attribute: `Regular` | `Premium` | `Recliner` (pricing derived on booking)
-8. **`bookings`**: Customer ticket orders.
-   - Unique Ticket Code constraint: `code`
-9. **`booking_seats`**: Junction table mapping seats booked per ticket (N:M link).
-   - Composite Primary Key: `(booking_id, seat_id)`
-10. **`payments`**: Simulated Razorpay API references tracking `razorpay_order_id`, transaction status, and timestamps.
-11. **`group_rooms`**: Collaborative session metadata.
-12. **`votes`**: Member preference tallies linking voters to specific choice IDs (movies, theatres, times).
+* Provide an online movie ticket booking platform.
+* Allow users to browse movies and show schedules.
+* Enable interactive seat selection.
+* Support secure user authentication.
+* Generate digital tickets with QR codes.
+* Facilitate collaborative movie planning through group rooms.
 
 ---
 
-## 🛠️ Ideal Tech Stack
+## Features
 
-- **Frontend**: React (Vite), TypeScript, Tailwind CSS, Lucide Icons, React Router DOM, Zustand.
-- **Backend**: Node.js, Express.js, TypeScript, jsonwebtoken, bcryptjs, dotenv.
-- **Database ORM**: Drizzle ORM (PostgreSQL client).
-- **Dual Engine Fallback**: Integrates a pure TypeScript file-based persistence DB (`db.json`) that replicates SQL queries perfectly. If `DATABASE_URL` is empty, the application falls back to this mode, meaning **it compiles and runs instantly without needing a running PostgreSQL instance!**
+### User Features
 
----
+* User Registration and Login
+* Browse Movies and Show Details
+* Interactive Seat Selection
+* Wishlist Management
+* Movie Reviews and Ratings
+* Ticket Booking and Cancellation
+* QR Code Based Tickets
+* PDF Ticket Generation
+* Booking History Dashboard
 
-## 🏃 Quick Start Guide
+### Group Planning Features
 
-### 1. Installation
-Ensure Node.js is installed on your computer. Open your terminal at the project root directory (`c:\Users\CSC\OneDrive\Desktop\movie`) and run:
-```bash
-# Installs root, frontend, and backend packages in one linked command
-npm run install:all
-```
+* Create Group Rooms
+* Join Rooms Using Invite Codes
+* Vote on Movies and Showtimes
+* Coordinate Plans with Friends
 
-### 2. Launch Local Dev Servers
-Once packages are installed, launch both servers in parallel:
-```bash
-# Spins up Backend on port 5000 and Frontend on port 3000 concurrently
-npm run dev
-```
+### Admin Features
 
-Open your browser and navigate to **`http://localhost:3000`** to view the application!
+* Add and Manage Movies
+* Manage Shows and Screens
+* View Booking Information
+* Manage Theatre Data
 
-### 🔑 Seed Login Portals
-The local fallback database automatically seeds itself with default mock accounts:
-- **Administrator Panel Access**:
-  - **Email**: `admin@cinecircle.com`
-  - **Password**: `admin123`
-- **Standard Customer Account**:
-  - **Email**: `user@cinecircle.com`
-  - **Password**: `user123`
+### Payment Features
+
+* Razorpay Payment Integration
+* Booking Confirmation after Payment
+* Payment Tracking
 
 ---
 
-## ☁️ Production Deployment Instructions
+## Technology Stack
 
-### 1. Database (Neon PostgreSQL)
-1. Register a free Serverless PostgreSQL instance on **[Neon.tech](https://neon.tech)**.
-2. Under Connection Details, copy your Connection String (`postgres://...`).
-3. Set this string as `DATABASE_URL` inside your backend environment config.
-4. Run `npm run db:seed --prefix backend` to seed PostgreSQL with all 15 movies, theatres, and screens!
+### Frontend
 
-### 2. Backend (Render / Heroku)
-1. Create a free Web Service on **[Render](https://render.com)**.
-2. Link your GitHub repository.
-3. Configure the following build environment:
-   - **Root Directory**: `backend`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
-4. Declare Environment Variables:
-   - `DATABASE_URL`: Your Neon connection string.
-   - `JWT_SECRET`: A secure long random string.
-   - `JWT_REFRESH_SECRET`: A secure long random string.
-   - `PORT`: `5000` (Render handles this dynamically).
+* React.js
+* Tailwind CSS
 
-### 3. Frontend (Vercel / Netlify)
-1. Create a project on **[Vercel](https://vercel.com)**.
-2. Link your repository.
-3. Configure:
-   - **Root Directory**: `frontend`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-4. Set base Axios URLs (`frontend/src/services/api.ts`) to point to your live Render API URL instead of `http://localhost:5000/api`.
-5. Deploy! Your site is live!
+### Backend
+
+* Node.js
+* Express.js
+
+### Database
+
+* PostgreSQL
+
+### Additional Tools
+
+* Drizzle ORM
+* JWT Authentication
+
+---
+
+## Database Tables
+
+* Users
+* Movies
+* Theatres
+* Screens
+* Shows
+* Seats
+* Bookings
+* Booking Seats
+* Payments
+* Reviews
+* Wishlist
+* Group Rooms
+* Votes
+* Seat Locks
+
+---
+
+## System Workflow
+
+User Login
+↓
+Browse Movies
+↓
+Select Show
+↓
+Choose Seats
+↓
+Make Payment
+↓
+Booking Confirmation
+↓
+QR Ticket Generation
+↓
+Dashboard
+
+---
+
+## Future Enhancements
+
+* Real-time seat synchronization
+* Email ticket delivery
+* Mobile application support
+* Advanced analytics dashboard
+* AI-based movie recommendations
+
+---
+
+## Conclusion
+
+CineCircle successfully demonstrates the implementation of a modern movie ticket booking system with features such as seat reservation, payment integration, digital ticket generation, and collaborative group planning. The project combines frontend, backend, and database technologies to provide a complete web-based solution.
+
+---
+
+## Developed By
+
+Kaniska Raj
+Shashikala T
+Sinchana S R
+
+Mini Project Submission
+
+Department of Computer Science
+
+Academic Year 2025–26

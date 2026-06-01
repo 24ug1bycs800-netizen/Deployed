@@ -1,93 +1,237 @@
 import React from "react";
-import { Film } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Film, Mail, MapPin, Phone } from "lucide-react";
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-[#070707] border-t border-neutral-900 text-muted py-12 px-6 font-poppins">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div>
-          <span className="flex items-center gap-2 text-2xl font-black text-primary tracking-wider  mb-4">
-            <Film className="w-6 h-6 text-primary" />
-            CineCircle
-          </span>
-          <p className="text-sm text-neutral-500 font-inter leading-relaxed">
-            Revolutionizing the way you plan and book movie experiences.
-            Deciding, coordinating, and booking tickets with friends has never
-            been this seamless.
-          </p>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Outfit:wght@300;400;500;600&display=swap');
+
+        .cc-footer {
+          background: #050508;
+          border-top: 1px solid rgba(212, 168, 83, 0.15);
+          font-family: 'Outfit', sans-serif;
+          position: relative;
+          overflow: hidden;
+        }
+        .cc-footer::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 50%;
+          transform: translateX(-50%);
+          width: 600px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, #D4A853, transparent);
+        }
+        .cc-footer-glow {
+          position: absolute;
+          top: -120px; left: 50%;
+          transform: translateX(-50%);
+          width: 500px; height: 200px;
+          background: radial-gradient(ellipse, rgba(212,168,83,0.06) 0%, transparent 70%);
+          pointer-events: none;
+        }
+        .cc-footer-inner {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 4rem 2rem 2rem;
+        }
+        .cc-footer-grid {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr 1.5fr;
+          gap: 3rem;
+          padding-bottom: 3rem;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        @media (max-width: 768px) {
+          .cc-footer-grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
+          .cc-footer-brand { grid-column: 1 / -1; }
+        }
+        @media (max-width: 480px) {
+          .cc-footer-grid { grid-template-columns: 1fr; }
+        }
+
+        .cc-footer-logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-family: 'Playfair Display', serif;
+          font-size: 1.5rem;
+          font-weight: 900;
+          background: linear-gradient(135deg, #D4A853 0%, #F0C070 50%, #B8860B 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin-bottom: 1rem;
+          text-decoration: none;
+        }
+        .cc-footer-logo-icon {
+          width: 30px; height: 30px;
+          background: linear-gradient(135deg, #D4A853, #F0C070);
+          border-radius: 7px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .cc-footer-logo-icon svg { color: #050508; width: 16px; height: 16px; }
+
+        .cc-footer-desc {
+          font-size: 0.85rem;
+          color: rgba(255,255,255,0.35);
+          line-height: 1.7;
+          max-width: 280px;
+          margin-bottom: 1.5rem;
+        }
+        .cc-footer-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          background: rgba(212, 168, 83, 0.08);
+          border: 1px solid rgba(212, 168, 83, 0.2);
+          border-radius: 100px;
+          font-size: 0.7rem;
+          color: #D4A853;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          font-weight: 500;
+        }
+
+        .cc-footer-col h4 {
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #D4A853;
+          margin-bottom: 1.25rem;
+        }
+        .cc-footer-col ul { list-style: none; padding: 0; margin: 0; }
+        .cc-footer-col ul li { margin-bottom: 0.65rem; }
+        .cc-footer-col ul li a {
+          font-size: 0.85rem;
+          color: rgba(255,255,255,0.4);
+          text-decoration: none;
+          transition: color 0.2s;
+          display: inline-block;
+        }
+        .cc-footer-col ul li a:hover { color: rgba(255,255,255,0.85); }
+
+        .cc-contact-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 0.85rem;
+          font-size: 0.85rem;
+          color: rgba(255,255,255,0.4);
+        }
+        .cc-contact-item svg { color: #D4A853; flex-shrink: 0; }
+        .cc-contact-item a {
+          color: rgba(255,255,255,0.4);
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+        .cc-contact-item a:hover { color: #D4A853; }
+
+        .cc-footer-bottom {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-top: 1.5rem;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        .cc-footer-bottom p {
+          font-size: 0.75rem;
+          color: rgba(255,255,255,0.2);
+          letter-spacing: 0.02em;
+        }
+        .cc-footer-bottom span {
+          font-size: 0.7rem;
+          color: rgba(212, 168, 83, 0.4);
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+
+        .cc-divider-line {
+          width: 30px; height: 2px;
+          background: linear-gradient(90deg, #D4A853, transparent);
+          margin-bottom: 1.25rem;
+          border-radius: 2px;
+        }
+      `}</style>
+
+      <footer className="cc-footer">
+        <div className="cc-footer-glow" />
+        <div className="cc-footer-inner">
+          <div className="cc-footer-grid">
+
+            {/* Brand */}
+            <div className="cc-footer-brand">
+              <Link to="/" className="cc-footer-logo">
+                <span className="cc-footer-logo-icon"><Film /></span>
+                CineCircle
+              </Link>
+              <p className="cc-footer-desc">
+                Revolutionizing the way you plan and experience cinema. 
+                Decide, coordinate, and book tickets with your crew — 
+                seamlessly and in style.
+              </p>
+              <span className="cc-footer-badge">
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#D4A853", display: "inline-block" }} />
+                DBMS Mini Project 2026
+              </span>
+            </div>
+
+            {/* Explore */}
+            <div className="cc-footer-col">
+              <div className="cc-divider-line" />
+              <h4>Explore</h4>
+              <ul>
+                <li><a href="/">Now Showing</a></li>
+                <li><a href="/">Coming Soon</a></li>
+                <li><a href="/groups">Group Rooms</a></li>
+                <li><a href="/">Cinemas Near You</a></li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div className="cc-footer-col">
+              <div className="cc-divider-line" />
+              <h4>Company</h4>
+              <ul>
+                <li><a href="#">About Us</a></li>
+                <li><a href="#">Careers</a></li>
+                <li><a href="#">Terms of Service</a></li>
+                <li><a href="#">Privacy Policy</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div className="cc-footer-col">
+              <div className="cc-divider-line" />
+              <h4>Contact</h4>
+              <div className="cc-contact-item">
+                <Mail size={13} />
+                <a href="mailto:support@cinecircle.com">support@cinecircle.com</a>
+              </div>
+              <div className="cc-contact-item">
+                <MapPin size={13} />
+                <span>Bengaluru, Karnataka</span>
+              </div>
+              <div className="cc-contact-item">
+                <Phone size={13} />
+                <span>+91 80 0000 0000</span>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="cc-footer-bottom">
+            <p>© 2026 CineCircle. Crafted with cinematic passion. All rights reserved.</p>
+            <span>Designed for the Big Screen</span>
+          </div>
         </div>
-        <div>
-          <h4 className="text-white text-sm font-semibold mb-4">Explore</h4>
-          <ul className="text-sm font-inter space-y-2">
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Now Showing
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Coming Soon
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Group Rooms
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Cinemas
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="text-white text-sm font-semibold mb-4">Company</h4>
-          <ul className="text-sm font-inter space-y-2">
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                About Us
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Careers
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Terms of Service
-              </a>
-            </li>
-            <li>
-              <a href="#" className="hover:text-white transition-colors">
-                Privacy Policy
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="text-white text-sm font-semibold mb-4">
-            Contact & Support
-          </h4>
-          <p className="text-sm font-inter text-neutral-500 mb-2">
-            Have questions or feedback?
-          </p>
-          <a
-            href="mailto:support@cinecircle.com"
-            className="text-primary hover:underline text-sm font-semibold"
-          >
-            support@cinecircle.com
-          </a>
-        </div>
-      </div>
-      <div className="max-w-6xl mx-auto border-t border-neutral-900 mt-8 pt-6 flex flex-col md:flex-row justify-between text-xs text-neutral-600 font-inter">
-        <p>
-          © 2026 CineCircle. Designed with cinematic passion. All rights
-          reserved.
-        </p>
-        <p>DBMS Mini Project Presentation Ready.</p>
-      </div>
-    </footer>
+      </footer>
+    </>
   );
 };

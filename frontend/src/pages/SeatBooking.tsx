@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.js";
-import {
-  Star,
-  Clock,
-  Ticket,
-  AlertCircle,
-  Sparkles,
-  CheckCircle2,
-  ShieldCheck,
-  Heart,
-} from "lucide-react";
-import api, { simulatePayment } from "../services/api.js";
+import { Star, Ticket, AlertCircle } from "lucide-react";
+import api from "../services/api.js";
+
+declare global {
+  interface Window { Razorpay: any; }
+}
+
+const getImageUrl = (url?: string) => {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  return `http://localhost:5000${url}`;
+};
 
 interface ShowDetails {
   id: number;
@@ -20,15 +21,9 @@ interface ShowDetails {
   priceRegular: number;
   pricePremium: number;
   priceRecliner: number;
-  movie: {
-    id: number;
-    title: string;
-    posterUrl: string;
-    genre: string;
-    ratingValue: string;
-  };
-  screen: { id: number; number: number; type: string };
-  theatre: { id: number; name: string; address: string };
+  movie: { id: number; title: string; posterUrl: string; genre: string; ratingValue: string; };
+  screen: { id: number; number: number; type: string; };
+  theatre: { id: number; name: string; address: string; };
 }
 
 interface Seat {
@@ -36,8 +31,27 @@ interface Seat {
   row: string;
   number: number;
   category: string;
-  status: string; // 'available' | 'booked' | 'selected'
+  status: string;
 }
+
+// ─── CATEGORY CONFIG ──────────────────────────────────────────────────────────
+const CATEGORY_STYLES: Record<string, { idle: React.CSSProperties; hover: React.CSSProperties; label: string }> = {
+  Regular: {
+    idle: { border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "#555" },
+    hover: { border: "1px solid rgba(212,175,55,0.4)", background: "rgba(212,175,55,0.06)", color: "#d4af37" },
+    label: "Regular",
+  },
+  Premium: {
+    idle: { border: "1px solid rgba(110,231,231,0.25)", background: "rgba(110,231,231,0.04)", color: "#4db6b6" },
+    hover: { border: "1px solid rgba(110,231,231,0.6)", background: "rgba(110,231,231,0.1)", color: "#6ee7e7" },
+    label: "Premium",
+  },
+  Recliner: {
+    idle: { border: "1px solid rgba(212,175,55,0.35)", background: "rgba(212,175,55,0.05)", color: "#a08020" },
+    hover: { border: "1px solid rgba(212,175,55,0.7)", background: "rgba(212,175,55,0.12)", color: "#d4af37" },
+    label: "Recliner",
+  },
+};
 
 export const SeatBooking: React.FC = () => {
   const { showId } = useParams();
@@ -49,27 +63,16 @@ export const SeatBooking: React.FC = () => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  // Payment Simulation States
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [ticketCode, setTicketCode] = useState("");
-  const [orderId, setOrderId] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      navigate("/auth", { state: { from: `/shows/${showId}/booking` } });
-      return;
-    }
-
+    if (!user) { navigate("/auth", { state: { from: `/shows/${showId}/booking` } }); return; }
     const fetchSeats = async () => {
       try {
         const res = await api.get(`/bookings/shows/${showId}/seats`);
         setShow(res.data.show);
         setSeats(res.data.seats);
-      } catch (err) {
-        console.error("Failed to load show seat layout:", err);
+      } catch {
         setError("Unable to load theatre seat details.");
       } finally {
         setLoading(false);
@@ -81,352 +84,285 @@ export const SeatBooking: React.FC = () => {
   const handleSeatClick = (seatId: number) => {
     const seat = seats.find((s) => s.id === seatId)!;
     if (seat.status === "booked") return;
-
     setSelectedSeats((prev) => {
-      if (prev.includes(seatId)) {
-        return prev.filter((id) => id !== seatId);
-      } else {
-        if (prev.length >= 6) {
-          setError("You can book a maximum of 6 seats at once.");
-          setTimeout(() => setError(""), 4000);
-          return prev;
-        }
-        return [...prev, seatId];
+      if (prev.includes(seatId)) return prev.filter((id) => id !== seatId);
+      if (prev.length >= 6) {
+        setError("Maximum 6 seats per booking.");
+        setTimeout(() => setError(""), 4000);
+        return prev;
       }
+      return [...prev, seatId];
     });
   };
 
-  const getSelectedSeatNames = () => {
-    return seats
-      .filter((s) => selectedSeats.includes(s.id))
-      .map((s) => `${s.row}${s.number}`)
-      .join(", ");
-  };
+  const getSelectedSeatNames = () =>
+    seats.filter((s) => selectedSeats.includes(s.id)).map((s) => `${s.row}${s.number}`).join(", ");
 
   const calculateTotalPrice = () => {
     if (!show) return 0;
-    let total = 0;
-    seats
+    return seats
       .filter((s) => selectedSeats.includes(s.id))
-      .forEach((seat) => {
-        if (seat.category === "Premium") total += show.pricePremium;
-        else if (seat.category === "Recliner") total += show.priceRecliner;
-        else total += show.priceRegular;
-      });
-    return total;
+      .reduce((total, seat) => {
+        if (seat.category === "Premium") return total + show.pricePremium;
+        if (seat.category === "Recliner") return total + show.priceRecliner;
+        return total + show.priceRegular;
+      }, 0);
   };
 
   const handleCheckoutSubmit = async () => {
     if (selectedSeats.length === 0) return;
     setError("");
     try {
-      // 1. Create pending booking order on API
-      const res = await api.post("/bookings/create", {
-        showId,
-        seatIds: selectedSeats,
-      });
-      setOrderId(res.data.razorpayOrderId);
-
-      // 2. Launch checkout portal overlay
-      setPaymentOpen(true);
-      setPaymentProcessing(true);
-
-      // 3. Simulating Razorpay Checkout response
-      const payResult: any = await simulatePayment(
-        res.data.razorpayOrderId,
-        calculateTotalPrice(),
-      );
-
-      // 4. Verify payment via API
-      const verifyRes = await api.post("/bookings/verify", {
-        razorpayOrderId: payResult.razorpayOrderId,
-        razorpayPaymentId: payResult.razorpayPaymentId,
-      });
-
-      setPaymentProcessing(false);
-      setPaymentSuccess(true);
-      setTicketCode(verifyRes.data.ticketCode);
-
-      // Refresh seat layout behind overlay
+      const res = await api.post("/bookings/create", { showId, seatIds: selectedSeats });
+      const options = {
+        key: res.data.key,
+        amount: res.data.amount,
+        currency: res.data.currency,
+        name: "CineCircle",
+        description: show?.movie.title,
+        order_id: res.data.razorpayOrderId,
+        handler: async function (response: any) {
+          try {
+            await api.post("/bookings/verify", {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+            });
+            const refreshRes = await api.get(`/bookings/shows/${showId}/seats`);
+            setSeats(refreshRes.data.seats);
+            setSelectedSeats([]);
+            navigate("/dashboard");
+          } catch (err) { console.error(err); }
+        },
+        prefill: { name: user?.fullName, email: user?.email },
+        theme: { color: "#d4af37" },
+      };
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
       const refreshRes = await api.get(`/bookings/shows/${showId}/seats`);
       setSeats(refreshRes.data.seats);
       setSelectedSeats([]);
     } catch (err: any) {
-      console.error(err);
-      setPaymentOpen(false);
-      setError(
-        err.response?.data?.error || "Booking failed. Please try again.",
-      );
+      setError(err.response?.data?.error || "Booking failed. Please try again.");
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-white">
-        <div className="w-12 h-12 border-t-2 border-primary border-solid rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#080808" }}>
+        <div className="w-10 h-10 rounded-full border-t-2 animate-spin" style={{ borderColor: "#d4af37" }} />
       </div>
     );
   }
-
   if (!show) return null;
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20 font-poppins relative">
-      <div className="max-w-7xl mx-auto px-6 sm:px-12 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* INTERACTIVE SEAT GRID PANEL (Left 2 columns) */}
+    <div className="min-h-screen text-white pb-24 font-poppins relative" style={{ background: "#080808" }}>
+      {/* FILM GRAIN */}
+      <div
+        className="fixed inset-0 opacity-[0.025] pointer-events-none z-0"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }}
+      />
+      {/* AMBIENT GLOW */}
+      <div
+        className="fixed top-0 left-1/2 -translate-x-1/2 w-[700px] h-[300px] pointer-events-none z-0"
+        style={{ background: "radial-gradient(ellipse at center top, rgba(212,175,55,0.05) 0%, transparent 65%)" }}
+      />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 py-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
+        {/* ── SEAT GRID (left 2 cols) ───────────────────────────────── */}
         <div className="lg:col-span-2 flex flex-col items-center">
-          {/* THEATRE SCREEN GRAPHIC */}
-          <div className="w-full max-w-lg mb-16 relative flex flex-col items-center">
-            {/* Projector light beam */}
-            <div className="absolute -top-10 w-9/12 h-20 bg-primary opacity-[0.03] blur-xl rounded-full"></div>
-            {/* Curved Screen */}
-            <div className="w-full h-2.5 bg-neutral-800 rounded-full shadow-xl border-t border-primary border-opacity-35 relative z-10"></div>
-            <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.25em] mt-3 font-inter">
-              SCREEN THIS WAY
+          {/* SCREEN GRAPHIC */}
+          <div className="w-full max-w-lg mb-14 flex flex-col items-center relative">
+            {/* PROJECTOR BEAM */}
+            <div
+              className="absolute -top-8 w-8/12 h-16 blur-2xl rounded-full pointer-events-none"
+              style={{ background: "rgba(212,175,55,0.06)" }}
+            />
+            {/* SCREEN BAR */}
+            <div
+              className="w-full h-2 rounded-full relative"
+              style={{
+                background: "linear-gradient(to right, transparent, rgba(212,175,55,0.5) 20%, #d4af37 50%, rgba(212,175,55,0.5) 80%, transparent)",
+                boxShadow: "0 0 20px rgba(212,175,55,0.2)",
+              }}
+            />
+            {/* SCREEN PERSPECTIVE LINES */}
+            <svg className="w-8/12 mt-0.5 opacity-10" viewBox="0 0 300 30" fill="none">
+              <line x1="150" y1="0" x2="0" y2="30" stroke="#d4af37" strokeWidth="0.5" />
+              <line x1="150" y1="0" x2="300" y2="30" stroke="#d4af37" strokeWidth="0.5" />
+            </svg>
+            <p className="text-[9px] tracking-[0.3em] uppercase mt-2 font-inter" style={{ color: "rgba(212,175,55,0.4)" }}>
+              Screen This Way
             </p>
           </div>
 
-          {/* GRID MATRIX */}
-          <div className="space-y-3 max-w-full overflow-x-auto pb-4">
+          {/* SEAT ROWS */}
+          <div className="space-y-2.5 max-w-full overflow-x-auto pb-4">
             {["A", "B", "C", "D", "E", "F"].map((rowLetter) => {
               const rowSeats = seats.filter((s) => s.row === rowLetter);
-              const categoryName = rowSeats[0]?.category;
-              let rowColor =
-                "border-neutral-700 bg-neutral-900 bg-opacity-30 hover:border-primary";
-              if (categoryName === "Premium")
-                rowColor =
-                  "border-accent border-opacity-60 bg-neutral-950 bg-opacity-30 hover:border-accent";
-              else if (categoryName === "Recliner")
-                rowColor =
-                  "border-primary border-opacity-70 bg-primary bg-opacity-5 hover:bg-opacity-15 hover:border-primary";
+              const category = rowSeats[0]?.category || "Regular";
+              const styles = CATEGORY_STYLES[category] || CATEGORY_STYLES.Regular;
 
               return (
-                <div
-                  key={rowLetter}
-                  className="flex items-center gap-3 min-w-[380px]"
-                >
-                  {/* Row Indicator */}
-                  <span className="w-5 text-xs text-neutral-500 font-bold text-center font-inter">
+                <div key={rowLetter} className="flex items-center gap-3 min-w-[400px]">
+                  <span className="w-5 text-[10px] font-black text-center font-inter" style={{ color: "rgba(212,175,55,0.4)" }}>
                     {rowLetter}
                   </span>
-
-                  {/* Row Seats list */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     {rowSeats.map((seat) => {
                       const isSelected = selectedSeats.includes(seat.id);
                       const isBooked = seat.status === "booked";
 
-                      let seatClass = rowColor;
-                      if (isSelected) {
-                        seatClass =
-                          "border-success bg-success bg-opacity-25 text-white shadow-xl animate-pulse";
-                      } else if (isBooked) {
-                        seatClass =
-                          "border-neutral-900 bg-neutral-900 bg-opacity-15 text-neutral-700 cursor-not-allowed";
-                      }
+                      const seatStyle = isBooked
+                        ? { border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)", color: "#2a2a2a", cursor: "not-allowed" }
+                        : isSelected
+                        ? { border: "1px solid rgba(34,197,94,0.6)", background: "rgba(34,197,94,0.15)", color: "#4ade80", boxShadow: "0 0 10px rgba(34,197,94,0.15)" }
+                        : styles.idle;
 
                       return (
                         <button
                           key={seat.id}
                           disabled={isBooked}
                           onClick={() => handleSeatClick(seat.id)}
-                          className={`w-7 sm:w-8 h-7 sm:h-8 rounded-lg border text-[10px] font-bold font-inter transition-all flex items-center justify-center ${seatClass}`}
+                          className="w-8 h-8 rounded-lg text-[10px] font-black font-inter transition-all flex items-center justify-center hover:scale-110"
+                          style={seatStyle}
+                          onMouseEnter={(e) => {
+                            if (!isBooked && !isSelected) Object.assign(e.currentTarget.style, styles.hover);
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isBooked && !isSelected) Object.assign(e.currentTarget.style, styles.idle);
+                          }}
                         >
-                          {seat.number}
+                          {isBooked ? "×" : seat.number}
                         </button>
                       );
                     })}
                   </div>
-
-                  <span className="text-[9px] text-neutral-500 font-bold font-inter opacity-50 px-2 uppercase">
-                    {categoryName}
+                  <span className="text-[9px] font-black font-inter uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.15)" }}>
+                    {category}
                   </span>
                 </div>
               );
             })}
           </div>
 
-          {/* GRID LEGENDS */}
-          <div className="flex flex-wrap gap-6 mt-12 justify-center text-xs font-semibold font-inter">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded border border-neutral-700 bg-neutral-900 bg-opacity-30"></div>
-              <span className="text-neutral-400">Available</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded border border-accent border-opacity-60 bg-neutral-950 bg-opacity-30"></div>
-              <span className="text-accent">
-                Premium (Rs {show.pricePremium})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded border border-primary border-opacity-70 bg-primary bg-opacity-5"></div>
-              <span className="text-primary">
-                Recliner (Rs {show.priceRecliner})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded border border-success bg-success bg-opacity-20"></div>
-              <span className="text-success">Selected</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded border border-neutral-900 bg-neutral-900 bg-opacity-15 text-neutral-800 flex items-center justify-center font-bold text-[9px]">
-                X
+          {/* LEGEND */}
+          <div className="flex flex-wrap gap-5 mt-12 justify-center">
+            {[
+              { label: "Regular", style: CATEGORY_STYLES.Regular.idle },
+              { label: `Premium ₹${show.pricePremium}`, style: CATEGORY_STYLES.Premium.idle },
+              { label: `Recliner ₹${show.priceRecliner}`, style: CATEGORY_STYLES.Recliner.idle },
+              { label: "Selected", style: { border: "1px solid rgba(34,197,94,0.6)", background: "rgba(34,197,94,0.15)" } },
+              { label: "Booked", style: { border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" } },
+            ].map(({ label, style }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded" style={style} />
+                <span className="text-xs text-neutral-600 font-inter">{label}</span>
               </div>
-              <span className="text-neutral-500">Booked</span>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* SIDE CHECKOUT SUMMARY SIDEBAR (Right column) */}
-        <div className="space-y-6">
-          {/* TICKET DETAILS PREVIEW CARD */}
-          <div className="p-6 rounded-2xl bg-card border border-gray-700 border border-neutral-900 shadow-premium relative">
+        {/* ── CHECKOUT SIDEBAR ──────────────────────────────────────── */}
+        <div className="space-y-5">
+          {/* MOVIE CARD */}
+          <div
+            className="p-5 rounded-2xl relative overflow-hidden"
+            style={{ background: "linear-gradient(160deg, #111 0%, #0c0c0c 100%)", border: "1px solid rgba(212,175,55,0.1)" }}
+          >
+            <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(212,175,55,0.3) 40%, transparent)" }} />
             <div className="flex gap-4">
               <img
-                src={show.movie.posterUrl}
+                src={getImageUrl(show.movie.posterUrl)}
                 alt={show.movie.title}
-                className="w-20 aspect-[2/3] object-cover rounded-xl border border-neutral-800"
+                className="w-20 aspect-[2/3] object-cover rounded-xl flex-shrink-0"
+                style={{ border: "1px solid rgba(212,175,55,0.15)" }}
               />
               <div>
-                <h3 className="font-bold text-white text-base leading-tight">
-                  {show.movie.title}
-                </h3>
-                <span className="text-[10px] text-primary uppercase font-bold tracking-wider mt-1.5 inline-block">
+                <h3 className="font-black text-white text-sm leading-tight">{show.movie.title}</h3>
+                <span className="text-[10px] font-black tracking-wider uppercase mt-1.5 inline-block" style={{ color: "#d4af37" }}>
                   {show.movie.genre.split("/")[0]}
                 </span>
-                <div className="flex items-center gap-1.5 mt-2.5 text-xs text-neutral-400 font-inter">
-                  <Star className="w-3.5 h-3.5 fill-accent text-accent" />
+                <div className="flex items-center gap-1 mt-2 text-xs text-neutral-600 font-inter">
+                  <Star className="w-3 h-3 fill-[#d4af37] text-[#d4af37]" />
                   <span>{show.movie.ratingValue} / 10</span>
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-neutral-900 mt-6 pt-5 space-y-3 font-inter text-xs text-neutral-400">
-              <div className="flex justify-between">
-                <span>Theatre:</span>
-                <span className="font-bold text-white">
-                  {show.theatre.name}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Date & Time:</span>
-                <span className="font-bold text-white">
-                  {show.date} @ {show.startTime}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Screen Type:</span>
-                <span className="font-bold text-white uppercase">
-                  {show.screen.type} (Screen {show.screen.number})
-                </span>
-              </div>
+            <div className="mt-5 pt-4 space-y-2.5 font-inter text-xs text-neutral-600" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+              {[
+                { label: "Theatre", value: show.theatre.name },
+                { label: "Date & Time", value: `${show.date} @ ${show.startTime}` },
+                { label: "Screen", value: `${show.screen?.type} · Screen ${show.screen.number}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between">
+                  <span>{label}</span>
+                  <span className="font-bold text-white">{value}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* CHECKOUT CALCULATION WIDGET */}
-          <div className="p-6 rounded-2xl bg-card border border-gray-700 border border-neutral-900 shadow-premium">
-            <h4 className="font-bold text-sm text-white mb-4 flex items-center gap-1.5">
-              <Ticket className="w-4 h-4 text-primary" /> Booking Summary
+          {/* BOOKING SUMMARY */}
+          <div
+            className="p-5 rounded-2xl"
+            style={{ background: "linear-gradient(160deg, #111 0%, #0c0c0c 100%)", border: "1px solid rgba(212,175,55,0.1)" }}
+          >
+            <h4 className="font-black text-sm text-white mb-4 flex items-center gap-2">
+              <Ticket className="w-4 h-4" style={{ color: "#d4af37" }} /> Booking Summary
             </h4>
 
             {error && (
-              <div className="mb-4 p-3.5 bg-error bg-opacity-10 border border-error border-opacity-30 rounded-xl flex items-center gap-2 text-xs text-red-400 font-inter">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
+              <div
+                className="mb-4 p-3.5 rounded-xl flex items-center gap-2 text-xs font-inter"
+                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}
+              >
+                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <span className="text-red-400">{error}</span>
               </div>
             )}
 
-            <div className="space-y-4 font-inter text-xs text-neutral-400 mb-6 border-b border-neutral-900 pb-5">
+            <div className="space-y-3 font-inter text-xs text-neutral-600 mb-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               <div className="flex justify-between">
-                <span>Selected Seats:</span>
-                <span className="font-bold text-white truncate max-w-40">
-                  {getSelectedSeatNames() || "None"}
-                </span>
+                <span>Selected Seats</span>
+                <span className="font-black text-white truncate max-w-[140px]">{getSelectedSeatNames() || "None"}</span>
               </div>
               <div className="flex justify-between">
-                <span>Regular Tickets Count:</span>
-                <span className="font-bold text-white">
-                  {selectedSeats.length}
-                </span>
+                <span>Seat Count</span>
+                <span className="font-black text-white">{selectedSeats.length}</span>
               </div>
-              <div className="flex justify-between items-center text-sm font-bold text-white pt-2 border-t border-neutral-900 border-opacity-50">
-                <span className="font-poppins">Total Amount:</span>
-                <span className="text-lg text-primary text-premium-card font-poppins">
-                  Rs {calculateTotalPrice()}
-                </span>
-              </div>
+            </div>
+
+            {/* TOTAL */}
+            <div className="flex justify-between items-center mb-5">
+              <span className="font-black text-white">Total Amount</span>
+              <span className="text-2xl font-black" style={{ color: "#d4af37" }}>
+                ₹{calculateTotalPrice()}
+              </span>
             </div>
 
             <button
               onClick={handleCheckoutSubmit}
               disabled={selectedSeats.length === 0}
-              className="w-full py-3.5 bg-primary hover:bg-secondary text-white font-bold font-poppins rounded-xl flex items-center justify-center gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none transition-all"
+              className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:pointer-events-none"
+              style={{
+                background: selectedSeats.length > 0 ? "linear-gradient(135deg, #d4af37, #f4d03f)" : "rgba(255,255,255,0.04)",
+                color: selectedSeats.length > 0 ? "#000" : "#333",
+                boxShadow: selectedSeats.length > 0 ? "0 8px 24px rgba(212,175,55,0.25)" : "none",
+              }}
             >
-              Confirm & Pay Rs {calculateTotalPrice()}
+              {selectedSeats.length > 0 ? `Confirm & Pay ₹${calculateTotalPrice()}` : "Select Seats to Continue"}
             </button>
+
+            {selectedSeats.length > 0 && (
+              <p className="text-[10px] text-neutral-700 text-center mt-3 font-inter">
+                Secure payment powered by Razorpay
+              </p>
+            )}
           </div>
         </div>
       </div>
-
-      {/* 3. SIMULATED RAZORPAY CHECKOUT PORTAL OVERLAY */}
-      {paymentOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-95 backdrop-blur-md">
-          <div className="w-full max-w-md p-8 rounded-2xl border border-neutral-800 bg-[#0f0f0f] relative shadow-premium flex flex-col items-center justify-center text-center animate-zoom-in">
-            {/* RAZORPAY LOGO SIMULATOR */}
-            <div className="flex items-center gap-1.5 text-lg font-black text-white tracking-widest font-poppins mb-6">
-              <Sparkles className="w-5 h-5 text-[#0B72E7]" />
-              RAZORPAY
-              <span className="text-[#0B72E7] font-medium text-sm">
-                checkout
-              </span>
-            </div>
-
-            {paymentProcessing && (
-              <div className="py-8 space-y-5 animate-pulse">
-                <div className="w-12 h-12 border-4 border-solid border-t-[#0B72E7] border-neutral-800 rounded-full animate-spin mx-auto"></div>
-                <h3 className="font-bold text-white text-base">
-                  Processing Payment Securely...
-                </h3>
-                <p className="text-xs text-neutral-500 font-inter max-w-xs mx-auto">
-                  Connecting with bank servers. Please do not close this window
-                  or click refresh.
-                </p>
-                <div className="border-t border-neutral-900 pt-4 text-xs font-inter text-neutral-600 flex justify-center gap-2 items-center">
-                  <ShieldCheck className="w-4 h-4 text-neutral-500" /> PCI-DSS
-                  Compliant Gateway
-                </div>
-              </div>
-            )}
-
-            {paymentSuccess && (
-              <div className="py-8 space-y-5 animate-fade-in">
-                <div className="w-16 h-16 rounded-full bg-success bg-opacity-15 border border-success flex items-center justify-center mx-auto text-success shadow-xl">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-lg">
-                    Payment Successful!
-                  </h3>
-                  <p className="text-xs text-success font-inter font-semibold mt-1">
-                    Ticket Confirmed • Code: {ticketCode}
-                  </p>
-                </div>
-                <p className="text-xs text-neutral-500 font-inter max-w-xs mx-auto">
-                  Your digital movie passes have been credited to your personal
-                  CineCircle Dashboard. Thank you for booking with us!
-                </p>
-
-                <button
-                  onClick={() => navigate("/dashboard")}
-                  className="w-full py-3 bg-success hover:bg-green-600 text-white font-bold font-poppins rounded-xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all text-sm"
-                >
-                  View My Tickets
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

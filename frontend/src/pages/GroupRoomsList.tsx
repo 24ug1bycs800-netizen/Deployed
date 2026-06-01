@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Loader,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import api from "../services/api.js";
 
@@ -46,15 +47,11 @@ export const GroupRoomsList: React.FC = () => {
     if (!inviteInput) return;
     setErr("");
     setActionLoading(true);
-
     try {
       const res = await api.post("/groups/join", { inviteCode: inviteInput });
       navigate(`/group/${res.data.inviteCode}`);
     } catch (error: any) {
-      setErr(
-        error.response?.data?.error ||
-          "Failed to join room. Verify invite code.",
-      );
+      setErr(error.response?.data?.error || "Failed to join room. Verify invite code.");
     } finally {
       setActionLoading(false);
     }
@@ -65,7 +62,6 @@ export const GroupRoomsList: React.FC = () => {
     if (!roomNameInput) return;
     setErr("");
     setActionLoading(true);
-
     try {
       const res = await api.post("/groups/create", { name: roomNameInput });
       navigate(`/group/${res.data.room.inviteCode}`);
@@ -78,126 +74,155 @@ export const GroupRoomsList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-white">
-        <div className="w-12 h-12 border-t-2 border-primary border-solid rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#080808" }}>
+        <div
+          className="w-10 h-10 rounded-full border-t-2 animate-spin"
+          style={{ borderColor: "#d4af37" }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20 font-poppins relative">
-      {/* CINEMATIC BACKDROP DECORATION */}
-      <div className="absolute top-1/4 left-1/3 w-80 h-80 rounded-full bg-primary opacity-5 blur-[120px]"></div>
+    <div
+      className="min-h-screen text-white pb-24 font-poppins relative"
+      style={{ background: "#080808" }}
+    >
+      {/* FILM GRAIN */}
+      <div
+        className="fixed inset-0 opacity-[0.025] pointer-events-none z-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
 
-      <div className="max-w-6xl mx-auto px-6 sm:px-12 py-12 space-y-12">
-        {/* HEADER BAR */}
-        <div className="border-b border-neutral-900 pb-6">
-          <h1 className="text-3xl font-black text-white tracking-wider flex items-center gap-2">
-            <MessageSquare className="w-8 h-8 text-primary text-premium-card" />{" "}
-            Collaborative Planning Rooms
-          </h1>
-          <p className="text-xs text-neutral-500 font-inter mt-1.5">
-            Join forces with friends to coordinate movies, vote on showtimes,
-            and book adjacent seats seamlessly.
+      {/* AMBIENT GLOW */}
+      <div
+        className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] pointer-events-none z-0"
+        style={{
+          background: "radial-gradient(ellipse at center top, rgba(212,175,55,0.07) 0%, transparent 65%)",
+        }}
+      />
+
+      <div className="relative z-10 max-w-5xl mx-auto px-6 sm:px-12 py-14 space-y-14">
+
+        {/* ── HEADER ────────────────────────────────────────────────────── */}
+        <div className="relative">
+          {/* VERTICAL GOLD ACCENT */}
+          <div
+            className="absolute -left-6 top-0 bottom-0 w-0.5 rounded-full"
+            style={{ background: "linear-gradient(to bottom, #d4af37, transparent)" }}
+          />
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="p-2.5 rounded-xl"
+              style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.2)" }}
+            >
+              <MessageSquare className="w-5 h-5" style={{ color: "#d4af37" }} />
+            </div>
+            <h1 className="text-3xl font-black text-white tracking-wide">
+              Planning Rooms
+            </h1>
+          </div>
+          <p className="text-sm text-neutral-600 font-inter leading-relaxed max-w-lg">
+            Coordinate with your squad — vote on movies, sync showtimes, and lock in adjacent seats together.
           </p>
+          {/* GOLD HAIRLINE */}
+          <div
+            className="mt-6 h-px"
+            style={{ background: "linear-gradient(to right, rgba(212,175,55,0.4), transparent)" }}
+          />
         </div>
 
+        {/* ── ERROR ─────────────────────────────────────────────────────── */}
         {err && (
-          <div className="p-4 bg-error bg-opacity-10 border border-error border-opacity-30 rounded-xl flex items-center gap-2.5 text-sm text-red-400 font-inter max-w-xl">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {err}
+          <div
+            className="p-4 rounded-xl flex items-center gap-2.5 text-sm font-inter"
+            style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}
+          >
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span className="text-red-400">{err}</span>
           </div>
         )}
 
-        {/* INPUT ACTIONS GRID (Join / Create Panels) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* JOIN EXISTING ROOM */}
-          <div className="p-6 rounded-2xl bg-card border border-gray-700 border border-neutral-900 shadow-premium flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-lg text-white mb-2">
-                Join Existing Room
-              </h3>
-              <p className="text-xs text-neutral-500 font-inter leading-relaxed mb-6">
-                Enter a 6-character room invite code shared by your friend to
-                join their planning workspace.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleJoinRoom}
-              className="flex gap-2.5 font-inter text-xs"
-            >
+        {/* ── JOIN / CREATE PANELS ───────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* JOIN */}
+          <ActionPanel
+            title="Join Existing Room"
+            description="Enter a 6-character invite code shared by your friend to join their planning workspace."
+            icon={<Compass className="w-5 h-5" style={{ color: "#d4af37" }} />}
+          >
+            <form onSubmit={handleJoinRoom} className="flex gap-2.5">
               <input
                 type="text"
                 required
                 maxLength={6}
-                placeholder="INVITE CODE (e.g. AA3B6F)"
+                placeholder="INVITE CODE"
                 value={inviteInput}
                 onChange={(e) => setInviteInput(e.target.value.toUpperCase())}
-                className="flex-grow p-3.5 bg-neutral-950 border border-neutral-900 focus:border-primary rounded-xl focus:outline-none text-white font-mono uppercase tracking-wider text-sm"
+                className="flex-grow px-4 py-3 rounded-xl font-mono uppercase tracking-widest text-sm text-white transition-all focus:outline-none"
+                style={{
+                  background: "#0a0a0a",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+                onFocus={(e) => {
+                  e.target.style.border = "1px solid rgba(212,175,55,0.5)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(212,175,55,0.06)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.border = "1px solid rgba(255,255,255,0.07)";
+                  e.target.style.boxShadow = "none";
+                }}
               />
-              <button
-                type="submit"
-                disabled={actionLoading}
-                className="px-6 py-3.5 bg-primary hover:bg-secondary text-white font-bold rounded-xl flex items-center justify-center gap-1 shadow-xl hover:scale-105 active:scale-95 transition-all"
-              >
-                {actionLoading ? (
-                  <Loader className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Compass className="w-4 h-4" /> Join
-                  </>
-                )}
-              </button>
+              <GoldButton loading={actionLoading} icon={<Compass className="w-4 h-4" />} label="Join" />
             </form>
-          </div>
+          </ActionPanel>
 
-          {/* CREATE NEW ROOM */}
-          <div className="p-6 rounded-2xl bg-card border border-gray-700 border border-neutral-900 shadow-premium flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-lg text-white mb-2">
-                Spawn New Planning Room
-              </h3>
-              <p className="text-xs text-neutral-500 font-inter leading-relaxed mb-6">
-                Create a dedicated planning space for your squad. You'll be the
-                group host and coordinate finalized bookings.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleCreateRoom}
-              className="flex gap-2.5 font-inter text-xs"
-            >
+          {/* CREATE */}
+          <ActionPanel
+            title="Create New Room"
+            description="Spawn a planning space for your squad. You'll be the host and coordinate final bookings."
+            icon={<PlusCircle className="w-5 h-5" style={{ color: "#d4af37" }} />}
+          >
+            <form onSubmit={handleCreateRoom} className="flex gap-2.5">
               <input
                 type="text"
                 required
-                placeholder="Squad Planning Name (e.g. Friday Blockbuster)"
+                placeholder="Room name (e.g. Friday Blockbuster)"
                 value={roomNameInput}
                 onChange={(e) => setRoomNameInput(e.target.value)}
-                className="flex-grow p-3.5 bg-neutral-950 border border-neutral-900 focus:border-primary rounded-xl focus:outline-none text-white text-sm"
+                className="flex-grow px-4 py-3 rounded-xl text-sm text-white transition-all focus:outline-none"
+                style={{
+                  background: "#0a0a0a",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+                onFocus={(e) => {
+                  e.target.style.border = "1px solid rgba(212,175,55,0.5)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(212,175,55,0.06)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.border = "1px solid rgba(255,255,255,0.07)";
+                  e.target.style.boxShadow = "none";
+                }}
               />
-              <button
-                type="submit"
-                disabled={actionLoading}
-                className="px-6 py-3.5 bg-primary hover:bg-secondary text-white font-bold rounded-xl flex items-center justify-center gap-1 shadow-xl hover:scale-105 active:scale-95 transition-all"
-              >
-                {actionLoading ? (
-                  <Loader className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <PlusCircle className="w-4 h-4" /> Create
-                  </>
-                )}
-              </button>
+              <GoldButton loading={actionLoading} icon={<PlusCircle className="w-4 h-4" />} label="Create" />
             </form>
-          </div>
+          </ActionPanel>
         </div>
 
-        {/* ACTIVE GROUP ROOMS LIST */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold border-l-4 border-primary pl-3">
-            My Planning Workspaces
-          </h3>
+        {/* ── MY WORKSPACES ──────────────────────────────────────────────── */}
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-5 rounded-full" style={{ background: "#d4af37" }} />
+            <h3 className="text-lg font-black text-white">My Workspaces</h3>
+            <span
+              className="ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-black"
+              style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.2)", color: "#d4af37" }}
+            >
+              {rooms.length}
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {rooms.length > 0 ? (
@@ -205,45 +230,76 @@ export const GroupRoomsList: React.FC = () => {
                 <div
                   key={room.id}
                   onClick={() => navigate(`/group/${room.inviteCode}`)}
-                  className="p-5 rounded-2xl bg-card border border-gray-700 border border-neutral-900 hover:border-primary cursor-pointer shadow-premium transition-all hover:scale-[1.01] flex justify-between items-center group relative overflow-hidden"
+                  className="p-5 rounded-2xl cursor-pointer transition-all hover:scale-[1.01] flex justify-between items-center group relative overflow-hidden"
+                  style={{
+                    background: "linear-gradient(160deg, #111 0%, #0c0c0c 100%)",
+                    border: "1px solid rgba(212,175,55,0.08)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(212,175,55,0.3)";
+                    e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.5)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(212,175,55,0.08)";
+                    e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+                  }}
                 >
+                  {/* SUBTLE GLOW */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ background: "linear-gradient(to right, transparent, rgba(212,175,55,0.5), transparent)" }}
+                  />
+
                   <div className="flex gap-3.5 items-center">
-                    <div className="p-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-xl text-primary flex-shrink-0">
-                      <MessageSquare className="w-5 h-5 text-primary text-premium-card" />
+                    <div
+                      className="p-3 rounded-xl flex-shrink-0"
+                      style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.18)" }}
+                    >
+                      <MessageSquare className="w-5 h-5" style={{ color: "#d4af37" }} />
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-sm leading-tight group-hover:text-primary transition-colors">
+                      <h4 className="font-black text-white text-sm group-hover:text-[#d4af37] transition-colors leading-tight">
                         {room.name}
                       </h4>
-                      <span className="text-[10px] text-neutral-500 font-inter mt-1.5 inline-block">
-                        Room Code:{" "}
-                        <strong className="text-accent font-mono">
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[9px] text-neutral-600 font-inter font-mono tracking-widest" style={{ color: "#d4af37" }}>
                           {room.inviteCode}
-                        </strong>{" "}
-                        • Members: {room.membersCount}
-                      </span>
+                        </span>
+                        <span className="text-[9px] text-neutral-700">·</span>
+                        <span className="flex items-center gap-0.5 text-[9px] text-neutral-600 font-inter">
+                          <Users className="w-2.5 h-2.5" /> {room.membersCount}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500 font-inter">
+                  <div className="flex items-center gap-2.5">
                     <span
-                      className={`px-2 py-0.5 border rounded uppercase text-[8px] font-bold ${
+                      className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider"
+                      style={
                         room.status === "voting"
-                          ? "border-primary bg-primary bg-opacity-10 text-primary"
-                          : "border-success bg-success bg-opacity-10 text-success"
-                      }`}
+                          ? { background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37" }
+                          : { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }
+                      }
                     >
                       {room.status}
                     </span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform text-muted" />
+                    <ArrowRight
+                      className="w-4 h-4 transition-all group-hover:translate-x-1"
+                      style={{ color: "rgba(212,175,55,0.3)" }}
+                    />
                   </div>
                 </div>
               ))
             ) : (
-              <div className="p-12 text-center col-span-2 rounded-2xl bg-neutral-950 bg-opacity-40 border border-neutral-900 text-neutral-500 flex flex-col items-center gap-2">
-                <MessageSquare className="w-8 h-8 text-neutral-700" />
-                <p className="text-sm font-medium">
-                  You are not part of any group planning workspaces yet.
+              <div
+                className="col-span-2 py-16 rounded-2xl flex flex-col items-center gap-3"
+                style={{ border: "1px dashed rgba(212,175,55,0.1)", background: "rgba(212,175,55,0.01)" }}
+              >
+                <MessageSquare className="w-10 h-10" style={{ color: "rgba(212,175,55,0.15)" }} />
+                <p className="text-sm text-neutral-700 font-inter text-center max-w-xs">
+                  You haven't joined or created any planning rooms yet. Invite your squad above.
                 </p>
               </div>
             )}
@@ -253,3 +309,58 @@ export const GroupRoomsList: React.FC = () => {
     </div>
   );
 };
+
+// ─── SUBCOMPONENTS ────────────────────────────────────────────────────────────
+
+const ActionPanel: React.FC<{
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ title, description, icon, children }) => (
+  <div
+    className="p-6 rounded-2xl flex flex-col gap-5 relative overflow-hidden"
+    style={{
+      background: "linear-gradient(160deg, #111 0%, #0d0d0d 100%)",
+      border: "1px solid rgba(212,175,55,0.12)",
+      boxShadow: "0 12px 40px rgba(0,0,0,0.4)",
+    }}
+  >
+    <div
+      className="absolute top-0 left-0 right-0 h-px"
+      style={{ background: "linear-gradient(to right, transparent, rgba(212,175,55,0.3) 40%, transparent)" }}
+    />
+    <div className="flex items-start gap-3">
+      <div
+        className="p-2 rounded-lg flex-shrink-0 mt-0.5"
+        style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.18)" }}
+      >
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-black text-white text-base">{title}</h3>
+        <p className="text-xs text-neutral-600 font-inter leading-relaxed mt-1">{description}</p>
+      </div>
+    </div>
+    {children}
+  </div>
+);
+
+const GoldButton: React.FC<{ loading: boolean; icon: React.ReactNode; label: string }> = ({
+  loading,
+  icon,
+  label,
+}) => (
+  <button
+    type="submit"
+    disabled={loading}
+    className="px-5 py-3 rounded-xl font-black text-sm flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
+    style={{
+      background: "linear-gradient(135deg, #d4af37, #f4d03f)",
+      color: "#000",
+      boxShadow: "0 4px 16px rgba(212,175,55,0.25)",
+    }}
+  >
+    {loading ? <Loader className="w-4 h-4 animate-spin" /> : <>{icon} {label}</>}
+  </button>
+);

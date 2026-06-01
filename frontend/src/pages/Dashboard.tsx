@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.js";
+import jsPDF from "jspdf";
+import QRCode from "qrcode";
+
 import {
   Ticket,
   Heart,
   MessageSquare,
-  Compass,
-  User,
-  Calendar,
-  ShieldCheck,
   Download,
   ExternalLink,
+  LogOut,
+  Film,
 } from "lucide-react";
 import api from "../services/api.js";
 
@@ -21,24 +22,19 @@ export const Dashboard: React.FC = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [wishlist, setWishlist] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"bookings" | "wishlist" | "rooms">(
-    "bookings",
-  );
+  const [activeTab, setActiveTab] = useState<"bookings" | "wishlist" | "rooms">("bookings");
 
   useEffect(() => {
     if (!user) {
       navigate("/auth");
       return;
     }
-
     const fetchDashboardData = async () => {
       try {
         const bookingsRes = await api.get("/bookings/my-bookings");
         setBookings(bookingsRes.data.bookings);
-
         const wishRes = await api.get("/bookings/wishlist");
         setWishlist(wishRes.data.wishlist);
-
         const roomsRes = await api.get("/groups/my-rooms");
         setRooms(roomsRes.data.rooms);
       } catch (err) {
@@ -48,256 +44,466 @@ export const Dashboard: React.FC = () => {
     fetchDashboardData();
   }, [user]);
 
-  const handlePrintTicket = (booking: any) => {
-    // Basic printable view alert simulation
-    window.print();
+  const handleCancelBooking = async (bookingId: number) => {
+    try {
+      await api.patch(`/bookings/${bookingId}/cancel`);
+      setBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === bookingId ? { ...booking, status: "cancelled" } : booking
+        )
+      );
+    } catch (err) {
+      console.error("Failed to cancel booking", err);
+    }
+  };
+
+  const handlePrintTicket = async (booking: any) => {
+    const doc = new jsPDF("landscape");
+    doc.setFillColor(18, 18, 18);
+    doc.roundedRect(8, 8, 281, 135, 8, 8, "F");
+    doc.setDrawColor(255, 215, 0);
+    doc.roundedRect(10, 10, 277, 131, 6, 6);
+    doc.setTextColor(25, 25, 25);
+    doc.setFontSize(52);
+    doc.text("CINECIRCLE", 75, 85);
+    try {
+      const poster = new Image();
+      poster.crossOrigin = "anonymous";
+      poster.src = booking.movie.posterUrl;
+      await new Promise((resolve, reject) => {
+        poster.onload = resolve;
+        poster.onerror = reject;
+      });
+      doc.addImage(poster, "JPEG", 20, 22, 42, 62);
+      doc.setDrawColor(255, 215, 0);
+      doc.roundedRect(19, 21, 44, 64, 2, 2);
+    } catch {
+      console.log("Poster load failed");
+    }
+    doc.setTextColor(255, 215, 0);
+    doc.setFontSize(28);
+    doc.text("CineCircle", 75, 28);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.text("Premium Movie Ticket", 75, 38);
+    for (let y = 15; y < 125; y += 4) {
+      doc.line(180, y, 180, y + 2);
+    }
+    doc.setFontSize(10);
+    doc.setTextColor(180, 180, 180);
+    doc.text("MOVIE", 65, 60);
+    doc.text("THEATRE", 65, 80);
+    doc.text("DATE & TIME", 65, 102);
+    doc.text("SEATS", 65, 122);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text(booking.movie.title, 65, 70);
+    doc.setFontSize(14);
+    doc.text(booking.theatre.name, 65, 90);
+    doc.text(`${booking.show.date} • ${booking.show.startTime}`, 65, 112);
+    doc.setFontSize(16);
+    doc.text(booking.seats.map((s: any) => `${s.row}${s.number}`).join(", "), 65, 128);
+    doc.setDrawColor(255, 215, 0);
+    doc.roundedRect(195, 20, 65, 30, 4, 4);
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
+    doc.text("TICKET CODE", 214, 30);
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text(booking.code, 202, 42);
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
+    doc.text(`Booking #${booking.id}`, 202, 51);
+    doc.text("AMOUNT PAID", 195, 72);
+    doc.setFontSize(18);
+    doc.text(`Rs ${booking.totalAmount}`, 195, 86);
+    const qrData = `Movie: ${booking.movie.title}\nTheatre: ${booking.theatre.name}\nDate: ${booking.show.date}\nTime: ${booking.show.startTime}\nSeats: ${booking.seats.map((s: any) => `${s.row}${s.number}`).join(", ")}\nTicket Code: ${booking.code}\nBooking ID: ${booking.id}`;
+    const qrImage = await QRCode.toDataURL(qrData);
+    doc.text("SCAN AT ENTRY", 205, 98);
+    doc.addImage(qrImage, "PNG", 205, 102, 22, 22);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text("Please carry a valid ID proof. Enjoy your movie!", 65, 136);
+    doc.text("www.cinecircle.com", 205, 136);
+    doc.save(`ticket-${booking.code}.pdf`);
   };
 
   if (!user) return null;
 
+  const tabs = [
+    { key: "bookings", label: "My Bookings", icon: Ticket, count: bookings.length },
+    { key: "wishlist", label: "Wishlist", icon: Heart, count: wishlist.length },
+    { key: "rooms", label: "Group Rooms", icon: MessageSquare, count: rooms.length },
+  ] as const;
+
   return (
-    <div className="min-h-screen bg-background text-white pb-20 font-poppins relative">
-      <div className="max-w-7xl mx-auto px-6 sm:px-12 py-12 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* LEFT COLUMN: USER DETAILS SIDEBAR */}
-        <div className="lg:col-span-1 p-6 rounded-2xl bg-card border border-gray-700 border border-neutral-900 flex flex-col items-center justify-center text-center max-h-[350px]">
-          <div className="w-20 h-20 rounded-full bg-primary bg-opacity-10 border border-primary border-opacity-35 flex items-center justify-center text-primary text-2xl font-black uppercase mb-4 shadow-xl">
-            {user.fullName.substring(0, 2)}
+    <div
+      className="min-h-screen text-white pb-20 font-poppins relative"
+      style={{ background: "#080808" }}
+    >
+      {/* FILM GRAIN */}
+      <div
+        className="fixed inset-0 opacity-[0.025] pointer-events-none z-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
+      {/* AMBIENT GLOW */}
+      <div
+        className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none z-0"
+        style={{
+          background: "radial-gradient(ellipse at center top, rgba(212,175,55,0.07) 0%, transparent 65%)",
+        }}
+      />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 py-12 grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* ─── SIDEBAR ─── */}
+        <div
+          className="lg:col-span-1 rounded-2xl flex flex-col items-center text-center p-6 relative overflow-hidden"
+          style={{
+            background: "linear-gradient(160deg, #131313 0%, #0d0d0d 100%)",
+            border: "1px solid rgba(212,175,55,0.12)",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+          }}
+        >
+          {/* TOP GOLD LINE */}
+          <div
+            className="absolute top-0 left-0 right-0 h-px"
+            style={{
+              background: "linear-gradient(to right, transparent, #d4af37 40%, transparent)",
+            }}
+          />
+
+          {/* AVATAR */}
+          <div className="relative mb-4">
+            <div
+              className="absolute inset-0 rounded-full blur-lg opacity-40"
+              style={{ background: "#d4af37" }}
+            />
+            <div
+              className="relative w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black uppercase"
+              style={{
+                background: "linear-gradient(135deg, rgba(212,175,55,0.15), rgba(212,175,55,0.05))",
+                border: "2px solid rgba(212,175,55,0.4)",
+                color: "#d4af37",
+              }}
+            >
+              {user.fullName.substring(0, 2)}
+            </div>
           </div>
-          <h2 className="font-bold text-white text-lg">{user.fullName}</h2>
-          <span className="px-2.5 py-0.5 bg-neutral-900 border border-neutral-800 rounded-full text-[10px] text-neutral-500 font-semibold font-inter mt-1 tracking-wide uppercase">
+
+          <h2 className="font-black text-white text-lg leading-tight">{user.fullName}</h2>
+          <span
+            className="mt-2 px-3 py-0.5 rounded-full text-[9px] font-black tracking-[0.2em] uppercase"
+            style={{
+              background: "rgba(212,175,55,0.08)",
+              border: "1px solid rgba(212,175,55,0.2)",
+              color: "#d4af37",
+            }}
+          >
             {user.role}
           </span>
-          <p className="text-xs text-neutral-500 font-inter mt-3 leading-relaxed truncate max-w-full">
-            {user.email}
-          </p>
+          <p className="text-xs text-neutral-600 font-inter mt-3 truncate max-w-full">{user.email}</p>
+
+          {/* STATS STRIP */}
+          <div
+            className="w-full mt-6 grid grid-cols-3 divide-x rounded-xl overflow-hidden"
+            style={{ borderColor: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.08)" }}
+          >
+            {[
+              { val: bookings.length, label: "Tickets" },
+              { val: wishlist.length, label: "Saved" },
+              { val: rooms.length, label: "Rooms" },
+            ].map(({ val, label }) => (
+              <div key={label} className="flex flex-col items-center py-3" style={{ borderColor: "rgba(212,175,55,0.08)" }}>
+                <span className="text-lg font-black" style={{ color: "#d4af37" }}>{val}</span>
+                <span className="text-[9px] text-neutral-600 font-inter uppercase tracking-wider">{label}</span>
+              </div>
+            ))}
+          </div>
 
           <button
-            onClick={() => {
-              logout();
-              navigate("/");
+            onClick={() => { logout(); navigate("/"); }}
+            className="mt-6 w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+            style={{
+              background: "rgba(239,68,68,0.05)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              color: "#f87171",
             }}
-            className="mt-6 w-full py-2.5 border border-error border-opacity-30 bg-error bg-opacity-5 hover:bg-error hover:bg-opacity-15 text-error rounded-xl text-xs font-bold transition-all"
           >
-            Logout Account
+            <LogOut className="w-3.5 h-3.5" /> Logout Account
           </button>
         </div>
 
-        {/* RIGHT COLUMN: TABS CONTAINER (3 columns) */}
+        {/* ─── MAIN CONTENT ─── */}
         <div className="lg:col-span-3 space-y-6">
-          {/* TAB HEADERS */}
-          <div className="flex border-b border-neutral-900 gap-6 font-poppins font-bold text-sm">
-            <button
-              onClick={() => setActiveTab("bookings")}
-              className={`pb-3 flex items-center gap-1.5 transition-all ${
-                activeTab === "bookings"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-muted hover:text-white"
-              }`}
-            >
-              <Ticket className="w-4 h-4" /> My Bookings ({bookings.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("wishlist")}
-              className={`pb-3 flex items-center gap-1.5 transition-all ${
-                activeTab === "wishlist"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-muted hover:text-white"
-              }`}
-            >
-              <Heart className="w-4 h-4" /> Wishlist ({wishlist.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("rooms")}
-              className={`pb-3 flex items-center gap-1.5 transition-all ${
-                activeTab === "rooms"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-muted hover:text-white"
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" /> Group Rooms ({rooms.length})
-            </button>
+          {/* TAB STRIP */}
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "#0d0d0d", border: "1px solid rgba(212,175,55,0.08)" }}>
+            {tabs.map(({ key, label, icon: Icon, count }) => {
+              const active = activeTab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className="flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                  style={
+                    active
+                      ? {
+                          background: "linear-gradient(135deg, rgba(212,175,55,0.15), rgba(212,175,55,0.08))",
+                          border: "1px solid rgba(212,175,55,0.3)",
+                          color: "#d4af37",
+                        }
+                      : { color: "#555", border: "1px solid transparent" }
+                  }
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                  <span
+                    className="px-1.5 py-0.5 rounded-full text-[9px] font-black"
+                    style={
+                      active
+                        ? { background: "rgba(212,175,55,0.2)", color: "#d4af37" }
+                        : { background: "rgba(255,255,255,0.04)", color: "#555" }
+                    }
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* TAB BODY VIEWS */}
-          <div className="space-y-6">
-            {/* A. MY BOOKINGS VIEW */}
-            {activeTab === "bookings" && (
-              <div className="space-y-4">
-                {bookings.length > 0 ? (
-                  bookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="p-6 rounded-2xl ticket-card shadow-premium grid grid-cols-1 md:grid-cols-4 gap-6 items-center relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-primary opacity-5 blur-[80px]"></div>
+          {/* ── BOOKINGS TAB ── */}
+          {activeTab === "bookings" && (
+            <div className="space-y-4">
+              {bookings.length > 0 ? (
+                bookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="rounded-2xl overflow-hidden relative"
+                    style={{
+                      background: "linear-gradient(160deg, #111 0%, #0c0c0c 100%)",
+                      border: "1px solid rgba(212,175,55,0.1)",
+                      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    {/* GOLD GLOW BEHIND CANCELLED ITEMS */}
+                    {booking.status === "cancelled" && (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: "radial-gradient(ellipse at top right, rgba(239,68,68,0.04), transparent 60%)",
+                        }}
+                      />
+                    )}
 
-                      {/* Poster and Details */}
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+                      {/* POSTER + INFO */}
                       <div className="md:col-span-3 flex gap-4">
-                        <img
-                          src={booking.movie.posterUrl}
-                          alt="pic"
-                          className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-xl border border-neutral-800 flex-shrink-0"
-                        />
+                        <div className="relative flex-shrink-0">
+                          <img
+                            src={booking.movie.posterUrl}
+                            alt="pic"
+                            className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-xl"
+                            style={{ border: "1px solid rgba(212,175,55,0.15)" }}
+                          />
+                        </div>
                         <div>
-                          <h4 className="font-bold text-white text-base leading-snug">
-                            {booking.movie.title}
-                          </h4>
-                          <span className="text-[10px] text-primary uppercase font-bold tracking-wider mt-1 inline-block">
+                          <h4 className="font-black text-white text-base leading-snug">{booking.movie.title}</h4>
+                          <span className="text-[10px] font-black tracking-widest uppercase mt-1 inline-block" style={{ color: "#d4af37" }}>
                             {booking.movie.genre.split("/")[0]}
                           </span>
-
-                          <div className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-1.5 font-inter text-xs text-neutral-500">
-                            <div>
-                              Theatre:{" "}
-                              <strong className="text-white">
-                                {booking.theatre.name}
-                              </strong>
-                            </div>
-                            <div>
-                              Date & Show:{" "}
-                              <strong className="text-white">
-                                {booking.show.date} @ {booking.show.startTime}
-                              </strong>
-                            </div>
+                          <div className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-1.5 font-inter text-xs text-neutral-600">
+                            <div>Theatre: <strong className="text-white">{booking.theatre.name}</strong></div>
+                            <div>Date: <strong className="text-white">{booking.show.date} @ {booking.show.startTime}</strong></div>
                             <div>
                               Seats:{" "}
-                              <strong className="text-accent">
-                                {booking.seats
-                                  .map((s: any) => `${s.row}${s.number}`)
-                                  .join(", ")}
+                              <strong style={{ color: "#d4af37" }}>
+                                {booking.seats.map((s: any) => `${s.row}${s.number}`).join(", ")}
                               </strong>
                             </div>
                             <div>
-                              Ticket Code:{" "}
-                              <strong className="text-white font-mono">
-                                {booking.code}
-                              </strong>
+                              Code:{" "}
+                              <strong className="text-white font-mono">{booking.code}</strong>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Printable slip checkout triggers */}
-                      <div className="md:col-span-1 border-t md:border-t-0 md:border-l border-neutral-800 border-opacity-50 pt-4 md:pt-0 md:pl-6 text-center flex flex-col gap-3 justify-center">
-                        <div className="text-xs text-neutral-500 font-inter">
-                          Total Amount paid
+                      {/* PRICE + ACTIONS */}
+                      <div
+                        className="md:col-span-1 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6 flex flex-col gap-3 items-center text-center"
+                        style={{ borderColor: "rgba(212,175,55,0.08)" }}
+                      >
+                        <div className="text-[10px] text-neutral-600 font-inter uppercase tracking-wider">Amount paid</div>
+                        <div className="text-2xl font-black" style={{ color: "#d4af37" }}>
+                          ₹{booking.totalAmount}
                         </div>
-                        <div className="text-xl font-black text-primary text-premium-card font-poppins">
-                          Rs {booking.totalAmount}
-                        </div>
-                        <button
-                          onClick={() => handlePrintTicket(booking)}
-                          className="px-4 py-2 border border-neutral-800 hover:border-primary bg-neutral-900 bg-opacity-60 rounded-xl text-xs font-bold hover:text-white text-muted transition-all flex items-center justify-center gap-1.5"
+                        <span
+                          className="text-[9px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full"
+                          style={
+                            booking.status === "cancelled"
+                              ? { background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }
+                              : { background: "rgba(34,197,94,0.1)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.2)" }
+                          }
                         >
-                          <Download className="w-3.5 h-3.5" /> Download Pass
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-neutral-600 text-center py-12 font-inter">
-                    No ticket bookings recorded yet. Launch booking triggers
-                    from now showing films!
-                  </p>
-                )}
-              </div>
-            )}
+                          {booking.status === "cancelled" ? "Cancelled" : "Confirmed"}
+                        </span>
 
-            {/* B. WISHLIST VIEW */}
-            {activeTab === "wishlist" && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                {wishlist.length > 0 ? (
-                  wishlist.map((movie) => (
-                    <div
-                      key={movie.id}
-                      onClick={() => navigate(`/movies/${movie.id}`)}
-                      className="group cursor-pointer rounded-xl overflow-hidden bg-card border border-gray-700 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:border-primary"
-                    >
-                      <div className="relative aspect-[2/3] overflow-hidden">
-                        <img
-                          src={movie.posterUrl}
-                          alt={movie.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        />
-                      </div>
-                      <div className="p-3">
-                        <h4 className="font-bold text-xs truncate mt-1 text-white group-hover:text-primary transition-colors">
-                          {movie.title}
-                        </h4>
-                        <p className="text-[9px] text-neutral-500 font-inter mt-0.5">
-                          {movie.genre.split("/")[0]}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-neutral-600 text-center py-12 font-inter col-span-4">
-                    No films wishlisted yet.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* C. MY GROUP ROOMS VIEW */}
-            {activeTab === "rooms" && (
-              <div className="space-y-4">
-                {rooms.length > 0 ? (
-                  rooms.map((room) => (
-                    <div
-                      key={room.id}
-                      onClick={() => navigate(`/group/${room.inviteCode}`)}
-                      className="p-5 rounded-2xl bg-card border border-gray-700 border border-neutral-900 hover:border-primary cursor-pointer shadow-premium transition-all hover:scale-[1.01] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative"
-                    >
-                      <div className="flex gap-4 items-center">
-                        <div className="p-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-xl text-primary flex-shrink-0">
-                          <MessageSquare className="w-5 h-5 text-primary text-premium-card" />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-base leading-tight">
-                            {room.name}
-                          </h4>
-                          <span className="text-[10px] text-neutral-500 font-inter mt-1.5 inline-block">
-                            Invite Code:{" "}
-                            <strong className="text-accent font-mono">
-                              {room.inviteCode}
-                            </strong>{" "}
-                            • Creator: {room.creator.fullName}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 font-inter text-xs text-neutral-500">
-                        <div>
-                          Members:{" "}
-                          <strong className="text-white">
-                            {room.membersCount}
-                          </strong>
-                        </div>
-                        <div className="flex items-center gap-1">
+                        {booking.status !== "cancelled" ? (
+                          <>
+                            <button
+                              onClick={() => handlePrintTicket(booking)}
+                              className="w-full px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                              style={{
+                                background: "rgba(212,175,55,0.07)",
+                                border: "1px solid rgba(212,175,55,0.25)",
+                                color: "#d4af37",
+                              }}
+                            >
+                              <Download className="w-3.5 h-3.5" /> Download Pass
+                            </button>
+                            <button
+                              onClick={() => handleCancelBooking(booking.id)}
+                              className="w-full px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02]"
+                              style={{
+                                background: "rgba(239,68,68,0.08)",
+                                border: "1px solid rgba(239,68,68,0.2)",
+                                color: "#f87171",
+                              }}
+                            >
+                              Cancel Ticket
+                            </button>
+                          </>
+                        ) : (
                           <span
-                            className={`px-2 py-0.5 border rounded uppercase text-[9px] font-bold ${
-                              room.status === "voting"
-                                ? "border-primary bg-primary bg-opacity-10 text-primary"
-                                : "border-success bg-success bg-opacity-10 text-success"
-                            }`}
+                            className="w-full px-4 py-2 rounded-xl text-xs font-bold text-center"
+                            style={{ background: "rgba(239,68,68,0.05)", color: "#f87171" }}
                           >
-                            {room.status}
+                            Ticket Cancelled
                           </span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </div>
+                        )}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-neutral-600 text-center py-12 font-inter">
-                    No collaborative planning rooms created or joined yet.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState
+                  icon={<Ticket className="w-8 h-8" />}
+                  message="No tickets yet. Book a screening to see your passes here."
+                />
+              )}
+            </div>
+          )}
+
+          {/* ── WISHLIST TAB ── */}
+          {activeTab === "wishlist" && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+              {wishlist.length > 0 ? (
+                wishlist.map((movie) => (
+                  <div
+                    key={movie.id}
+                    onClick={() => navigate(`/movies/${movie.id}`)}
+                    className="group cursor-pointer rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+                    style={{ border: "1px solid rgba(212,175,55,0.08)", background: "#111" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.35)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.08)")}
+                  >
+                    <div className="relative aspect-[2/3] overflow-hidden">
+                      <img
+                        src={movie.posterUrl}
+                        alt={movie.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-black text-xs truncate text-white group-hover:text-[#d4af37] transition-colors">
+                        {movie.title}
+                      </h4>
+                      <p className="text-[9px] text-neutral-600 font-inter mt-0.5">{movie.genre.split("/")[0]}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-4">
+                  <EmptyState icon={<Heart className="w-8 h-8" />} message="No films wishlisted yet. Explore what's showing." />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── GROUP ROOMS TAB ── */}
+          {activeTab === "rooms" && (
+            <div className="space-y-3">
+              {rooms.length > 0 ? (
+                rooms.map((room) => (
+                  <div
+                    key={room.id}
+                    onClick={() => navigate(`/group/${room.inviteCode}`)}
+                    className="p-5 rounded-2xl cursor-pointer transition-all hover:scale-[1.01] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden group"
+                    style={{
+                      background: "linear-gradient(160deg, #111 0%, #0c0c0c 100%)",
+                      border: "1px solid rgba(212,175,55,0.08)",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.3)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(212,175,55,0.08)")}
+                  >
+                    <div className="flex gap-4 items-center">
+                      <div
+                        className="p-3 rounded-xl flex-shrink-0"
+                        style={{
+                          background: "rgba(212,175,55,0.08)",
+                          border: "1px solid rgba(212,175,55,0.2)",
+                        }}
+                      >
+                        <MessageSquare className="w-5 h-5" style={{ color: "#d4af37" }} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-white text-sm group-hover:text-[#d4af37] transition-colors">
+                          {room.name}
+                        </h4>
+                        <span className="text-[10px] text-neutral-600 font-inter mt-1 inline-block">
+                          Code:{" "}
+                          <strong className="font-mono" style={{ color: "#d4af37" }}>{room.inviteCode}</strong>
+                          {" "}· Creator: {room.creator.fullName}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 font-inter text-xs text-neutral-600">
+                      <span>Members: <strong className="text-white">{room.membersCount}</strong></span>
+                      <span
+                        className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider"
+                        style={
+                          room.status === "voting"
+                            ? { background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37" }
+                            : { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }
+                        }
+                      >
+                        {room.status}
+                      </span>
+                      <ExternalLink className="w-3.5 h-3.5 text-neutral-700 group-hover:text-[#d4af37] transition-colors" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState icon={<MessageSquare className="w-8 h-8" />} message="No planning rooms yet. Create one and invite your squad." />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+const EmptyState: React.FC<{ icon: React.ReactNode; message: string }> = ({ icon, message }) => (
+  <div
+    className="py-16 rounded-2xl flex flex-col items-center gap-3 text-center"
+    style={{ background: "rgba(255,255,255,0.01)", border: "1px dashed rgba(212,175,55,0.1)" }}
+  >
+    <div style={{ color: "rgba(212,175,55,0.2)" }}>{icon}</div>
+    <p className="text-sm text-neutral-700 font-inter max-w-xs">{message}</p>
+  </div>
+);

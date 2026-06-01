@@ -36805,6 +36805,24 @@
       "status": "confirmed",
       "code": "CC-A72726B8",
       "createdAt": "2026-05-30T21:18:31.907Z"
+    },
+    {
+      "id": 3,
+      "userId": 3,
+      "showId": 427,
+      "totalAmount": 300,
+      "status": "confirmed",
+      "code": "CC-17C7B7A8",
+      "createdAt": "2026-05-31T03:59:53.392Z"
+    },
+    {
+      "id": 4,
+      "userId": 3,
+      "showId": 557,
+      "totalAmount": 300,
+      "status": "confirmed",
+      "code": "CC-E32D704F",
+      "createdAt": "2026-05-31T04:04:36.535Z"
     }
   ],
   "bookingSeats": [
@@ -36823,6 +36841,22 @@
     {
       "bookingId": 2,
       "seatId": 267
+    },
+    {
+      "bookingId": 3,
+      "seatId": 144
+    },
+    {
+      "bookingId": 3,
+      "seatId": 145
+    },
+    {
+      "bookingId": 4,
+      "seatId": 515
+    },
+    {
+      "bookingId": 4,
+      "seatId": 516
     }
   ],
   "payments": [
@@ -36841,6 +36875,22 @@
       "status": "success",
       "createdAt": "2026-05-30T21:18:31.907Z",
       "razorpayPaymentId": "pay_5c1fpafjj"
+    },
+    {
+      "id": 3,
+      "bookingId": 3,
+      "razorpayOrderId": "order_a50a1bd43458e090",
+      "status": "success",
+      "createdAt": "2026-05-31T03:59:53.392Z",
+      "razorpayPaymentId": "pay_iqi31lz00"
+    },
+    {
+      "id": 4,
+      "bookingId": 4,
+      "razorpayOrderId": "order_c0da59f8cee33715",
+      "status": "success",
+      "createdAt": "2026-05-31T04:04:36.535Z",
+      "razorpayPaymentId": "pay_8ankg42qz"
     }
   ],
   "groupRooms": [

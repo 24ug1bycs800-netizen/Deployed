@@ -1,1 +1,15 @@
 node_modules
+dist
+build
+
+.env
+.env.local
+
+frontend/node_modules
+frontend/dist
+
+backend/node_modules
+backend/dist
+
+.vscode
+.DS_Store

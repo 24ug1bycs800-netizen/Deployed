@@ -1,36 +1,36 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = "http://localhost:5000/api"; // ✅ FIXED
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
-// REQUEST INTERCEPTOR FOR ACCESS TOKEN
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('cinecircle_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// attach token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("cinecircle_access_token");
 
-// MOCK PAYMENTS SYSTEM
-export const simulatePayment = async (orderId: string, amount: number) => {
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
+// mock payment
+export const simulatePayment = (orderId: string, amount: number) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
-        status: 'success',
+        status: "success",
         razorpayOrderId: orderId,
-        razorpayPaymentId: `pay_${Math.random().toString(36).substr(2, 9)}`,
+        razorpayPaymentId:
+          "pay_" + Math.random().toString(36).substring(2, 10),
       });
-    }, 1500);
+    }, 1000);
   });
 };
 
