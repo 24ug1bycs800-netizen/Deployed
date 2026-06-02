@@ -231,7 +231,7 @@ export const MovieDetails: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(DATE_OPTIONS[0]);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const [setGroupLoading] = useState(false);
+  const [] = useState(false);
 
   const embedUrl = getEmbedUrl(movie?.trailerUrl);
 
