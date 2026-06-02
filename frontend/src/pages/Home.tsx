@@ -40,7 +40,7 @@ interface Theatre {
 const getImageUrl = (url?: string) => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `http://localhost:5000${url}`;
+  return `${import.meta.env.VITE_API_URL}${url}`;
 };
 
 // ─── GOLD SECTION HEADING ─────────────────────────────────────────────────────

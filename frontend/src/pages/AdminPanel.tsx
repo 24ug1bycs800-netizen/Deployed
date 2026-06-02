@@ -67,7 +67,7 @@ const TAB_LABELS: Record<string, string> = {
 
 export const AdminPanel: React.FC = () => {
   const { user } = useAuth();
-  const { selectedCity } = useCityStore();
+  const {} = useCityStore();
   const navigate = useNavigate();
 
   const [kpi, setKpi] = useState<KPI | null>(null);

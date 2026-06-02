@@ -33,7 +33,7 @@ const getEmbedUrl = (url?: string) => {
 const getImageUrl = (url?: string) => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `http://localhost:5000${url}`;
+  return `${import.meta.env.VITE_API_URL}${url}`;
 };
 
 const getLocalToday = (): string => {
@@ -231,7 +231,7 @@ export const MovieDetails: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(DATE_OPTIONS[0]);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const [groupLoading, setGroupLoading] = useState(false);
+  const [setGroupLoading] = useState(false);
 
   const embedUrl = getEmbedUrl(movie?.trailerUrl);
 
@@ -286,21 +286,6 @@ export const MovieDetails: React.FC = () => {
     }
   };
 
-  const handleCreateGroupRoom = async () => {
-    if (!user) { navigate("/auth", { state: { from: `/movies/${id}` } }); return; }
-    setGroupLoading(true);
-    try {
-      const name = `${movie?.title} Plan - ${user.fullName.split(" ")[0]}'s Crew`;
-      const res = await api.post("/groups/create", { name });
-      const room = res.data.room;
-      await api.post(`/groups/${room.id}/vote`, { voteType: "movie", votedId: id });
-      navigate(`/group/${room.inviteCode}`);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || err?.message || "Group creation failed");
-    } finally {
-      setGroupLoading(false);
-    }
-  };
 
   if (!movie) {
     return (

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api"; // ✅ FIXED
+const API_BASE_URL = import.meta.env.VITE_API_URL; // ✅ FIXED
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,7 +21,7 @@ api.interceptors.request.use((config) => {
 });
 
 // mock payment
-export const simulatePayment = (orderId: string, amount: number) => {
+export const simulatePayment = (orderId: string) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({

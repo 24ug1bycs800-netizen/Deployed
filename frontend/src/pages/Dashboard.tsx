@@ -11,7 +11,6 @@ import {
   Download,
   ExternalLink,
   LogOut,
-  Film,
 } from "lucide-react";
 import api from "../services/api.js";
 
