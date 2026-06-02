@@ -9,7 +9,6 @@ import {
   Trophy,
   Copy,
   Check,
-  MessageSquare,
   AlertCircle,
   Compass,
   ShieldAlert,
@@ -202,7 +201,11 @@ export const GroupBooking: React.FC = () => {
       const topMovie = res.data.votingResults.movies.sort((a: any, b: any) => b.votes - a.votes)[0];
       if (topMovie || r.selectedMovieId) {
         const mId = r.selectedMovieId || topMovie.id;
-        const showsRes = await api.get(`/shows?movieId=${mId}&citySlug=${selectedCity.slug}`);
+        const topTheatre = res.data.votingResults.theatres.sort((a: any, b: any) => b.votes - a.votes)[0];
+        const theatreId = r.selectedTheatreId || topTheatre?.id;
+        const showsRes = await api.get(
+          `/shows?movieId=${mId}&theatreId=${theatreId}&citySlug=${selectedCity.slug}`
+        );
         setShowsList(showsRes.data.shows);
       }
     } catch {
@@ -223,8 +226,19 @@ export const GroupBooking: React.FC = () => {
     return () => clearInterval(interval);
   }, [room]);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/group/${inviteCode}`);
+  // ✅ Copy only the invite code (not the full URL)
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(room!.inviteCode);
+    } catch {
+      // Fallback for non-HTTPS / older browsers
+      const el = document.createElement("textarea");
+      el.value = room!.inviteCode;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
@@ -236,18 +250,27 @@ export const GroupBooking: React.FC = () => {
     } catch { console.error("Vote failed"); }
   };
 
+  // ✅ Fixed: navigate directly using topShow.id after finalize — don't wait on fetchRoomData
   const handleFinalizeRoom = async () => {
     const topMovie = [...movieVotes].sort((a, b) => b.votes - a.votes)[0];
     const topTheatre = [...theatreVotes].sort((a, b) => b.votes - a.votes)[0];
     const topShow = [...showtimeVotes].sort((a, b) => b.votes - a.votes)[0];
+
     if (!topMovie || !topTheatre || !topShow) {
       setError("At least one vote needed for Movie, Theatre, and Showtime before finalization.");
       setTimeout(() => setError(""), 5000);
       return;
     }
+
     try {
-      await api.post(`/groups/${room?.id}/finalize`, { movieId: topMovie.id, theatreId: topTheatre.id, showId: topShow.id });
-      await fetchRoomData();
+      await api.post(`/groups/${room?.id}/finalize`, {
+        movieId: topMovie.id,
+        theatreId: topTheatre.id,
+        showId: topShow.id,
+      });
+
+      // ✅ Navigate immediately using topShow.id — no need to wait for room refetch
+      navigate(`/shows/${topShow.id}/booking`);
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to finalize choices.");
     }
@@ -287,6 +310,11 @@ export const GroupBooking: React.FC = () => {
   const totalMovieVotes = movieVotes.reduce((s, v) => s + v.votes, 0) || 1;
   const totalTheatreVotes = theatreVotes.reduce((s, v) => s + v.votes, 0) || 1;
   const totalShowtimeVotes = showtimeVotes.reduce((s, v) => s + v.votes, 0) || 1;
+
+  // ✅ Derive finalShowId from room OR fall back to top showtime vote
+  const finalShowId =
+    room.selectedShowId ||
+    [...showtimeVotes].sort((a, b) => b.votes - a.votes)[0]?.id;
 
   return (
     <div className="min-h-screen text-white pb-24 font-poppins relative" style={{ background: "#080808" }}>
@@ -337,13 +365,14 @@ export const GroupBooking: React.FC = () => {
                 {room.inviteCode}
               </strong>
             </div>
+            {/* ✅ Copies only the invite code */}
             <button
-              onClick={handleCopyLink}
-              className="p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-105"
+              onClick={handleCopyCode}
+              className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all hover:scale-105"
               style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.2)", color: "#d4af37" }}
             >
               {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copied!" : "Share"}
+              {copied ? "Copied!" : "Copy Code"}
             </button>
           </div>
         </div>
@@ -405,7 +434,7 @@ export const GroupBooking: React.FC = () => {
 
                 <VotingCard
                   step={3} title="Select Preferred Showtime"
-                  subtitle="Auto-computed from top voted movie"
+                  subtitle="Auto-computed from top voted movie & theatre"
                   placeholder="— Choose Available Showtime —"
                   voteBtnLabel="Vote"
                   selectValue={selectedShowtimeVote}
@@ -421,7 +450,7 @@ export const GroupBooking: React.FC = () => {
                 />
               </>
             ) : (
-              /* FINALIZED CARD */
+              /* ✅ FINALIZED CARD — uses finalShowId fallback */
               <div
                 className="p-10 rounded-2xl flex flex-col items-center text-center relative overflow-hidden"
                 style={{ background: "linear-gradient(160deg, #0c160c 0%, #090d09 100%)", border: "1px solid rgba(34,197,94,0.2)" }}
@@ -440,8 +469,9 @@ export const GroupBooking: React.FC = () => {
                   Decisions are locked. All members can now proceed to seat selection and complete their booking.
                 </p>
                 <button
-                  onClick={() => navigate(`/shows/${room.selectedShowId}/booking`)}
-                  className="px-8 py-3.5 rounded-xl font-black text-sm flex items-center gap-2 transition-all hover:scale-105"
+                  onClick={() => navigate(`/shows/${finalShowId}/booking`)}
+                  disabled={!finalShowId}
+                  className="px-8 py-3.5 rounded-xl font-black text-sm flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-40"
                   style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", boxShadow: "0 8px 24px rgba(34,197,94,0.2)" }}
                 >
                   <CheckCircle className="w-4 h-4" /> Go to Seat Selection
