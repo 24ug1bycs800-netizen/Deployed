@@ -19,11 +19,14 @@ const PORT = process.env.PORT || 5000;
 // CORS (ONLY ONCE - CORRECT POSITION)
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://dbms-mini-project-k8vk.vercel.app"
+    ],
     credentials: true,
   })
 );
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
