@@ -142,9 +142,12 @@ export const addShow = async (req: Request, res: Response) => {
  
     return res.status(201).json({ message: "Showtime added successfully", show: inserted[0] });
   } catch (err) {
-    console.error("Admin add show error:", err);
-    return res.status(500).json({ error: "Internal server error adding showtime" });
-  }
+    console.error("Admin add show error FULL:", err);
+    return res.status(500).json({
+    error: "Internal server error adding showtime",
+    details: String(err),
+  });
+}
 };
  
 // DELETE MOVIE
