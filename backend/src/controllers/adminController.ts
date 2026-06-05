@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { db } from "../db/db";
 import {
   bookings, users, groupRooms, movies, theatres,
-  cities, shows, screens, seats,
+  cities, shows, screens, seats, seatLocks,
 } from "../db/schema";
 import { eq } from "drizzle-orm";
  
@@ -125,24 +125,63 @@ export const addMovie = async (req: Request, res: Response) => {
 export const addShow = async (req: Request, res: Response) => {
   try {
     const { movieId, screenId, startTime, date, priceRegular, pricePremium, priceRecliner } = req.body;
+    const parsedMovieId = Number.parseInt(String(movieId), 10);
+    const parsedScreenId = Number.parseInt(String(screenId), 10);
+    const parsedPriceRegular = Number.parseInt(String(priceRegular), 10);
+    const parsedPricePremium = Number.parseInt(String(pricePremium), 10);
+    const parsedPriceRecliner = Number.parseInt(String(priceRecliner), 10);
+
+    console.info("[admin:addShow] request", {
+      movieId,
+      screenId,
+      parsedMovieId,
+      parsedScreenId,
+      startTime,
+      date,
+    });
  
     if (!movieId || !screenId || !startTime || !date) {
       return res.status(400).json({ error: "movieId, screenId, startTime, and date are required" });
     }
+    if (Number.isNaN(parsedMovieId) || Number.isNaN(parsedScreenId)) {
+      return res.status(400).json({ error: "movieId and screenId must be valid numbers" });
+    }
+
+    const [movie] = await db.select({ id: movies.id }).from(movies).where(eq(movies.id, parsedMovieId)).limit(1);
+    if (!movie) {
+      console.warn("[admin:addShow] movie not found", { movieId: parsedMovieId });
+      return res.status(400).json({ error: `Movie ${parsedMovieId} does not exist` });
+    }
+
+    const [screen] = await db.select({ id: screens.id }).from(screens).where(eq(screens.id, parsedScreenId)).limit(1);
+    if (!screen) {
+      console.warn("[admin:addShow] screen not found", { screenId: parsedScreenId });
+      return res.status(400).json({ error: `Screen ${parsedScreenId} does not exist` });
+    }
  
     const inserted = await db.insert(shows).values({
-      movieId: parseInt(movieId),
-      screenId: parseInt(screenId),
+      movieId: parsedMovieId,
+      screenId: parsedScreenId,
       startTime,
       date,
-      priceRegular: parseInt(priceRegular) || 150,
-      pricePremium: parseInt(pricePremium) || 250,
-      priceRecliner: parseInt(priceRecliner) || 450,
+      priceRegular: Number.isNaN(parsedPriceRegular) ? 150 : parsedPriceRegular,
+      pricePremium: Number.isNaN(parsedPricePremium) ? 250 : parsedPricePremium,
+      priceRecliner: Number.isNaN(parsedPriceRecliner) ? 450 : parsedPriceRecliner,
     }).returning();
+
+    console.info("[admin:addShow] inserted", { showId: inserted[0]?.id });
  
     return res.status(201).json({ message: "Showtime added successfully", show: inserted[0] });
   } catch (err) {
-    console.error("Admin add show error FULL:", err);
+    console.error("[admin:addShow] failed", {
+      body: req.body,
+      error: err,
+      code: (err as any)?.code,
+      detail: (err as any)?.detail,
+      constraint: (err as any)?.constraint,
+      table: (err as any)?.table,
+      column: (err as any)?.column,
+    });
     return res.status(500).json({
     error: "Internal server error adding showtime",
     details: String(err),
@@ -169,11 +208,25 @@ export const deleteShow = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid show ID" });
+
+    console.info("[admin:deleteShow] request", { showId: id });
  
+    await db.delete(seatLocks).where(eq(seatLocks.showId, id));
+    await db.update(groupRooms).set({ selectedShowId: null }).where(eq(groupRooms.selectedShowId, id));
     await db.delete(shows).where(eq(shows.id, id));
+
+    console.info("[admin:deleteShow] deleted", { showId: id });
     return res.status(200).json({ message: "Show deleted successfully" });
   } catch (err) {
-    console.error("Delete show error:", err);
+    console.error("[admin:deleteShow] failed", {
+      showId: req.params.id,
+      error: err,
+      code: (err as any)?.code,
+      detail: (err as any)?.detail,
+      constraint: (err as any)?.constraint,
+      table: (err as any)?.table,
+      column: (err as any)?.column,
+    });
     return res.status(500).json({ error: "Internal server error deleting show" });
   }
 };
@@ -197,6 +250,18 @@ export const getAllShows = async (req: Request, res: Response) => {
     console.error("Get shows error:", err);
     return res.status(500).json({
       error: "Failed to fetch shows",
+    });
+  }
+};
+
+export const getAllScreens = async (req: Request, res: Response) => {
+  try {
+    const data = await db.select().from(screens);
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error("Get screens error:", err);
+    return res.status(500).json({
+      error: "Failed to fetch screens",
     });
   }
 };

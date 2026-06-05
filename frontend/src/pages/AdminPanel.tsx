@@ -50,8 +50,13 @@ interface TheatreSlot {
   priceRec: string;
 }
 
+interface ScreenOption {
+  value: string;
+  label: string;
+}
+
 const defaultSlot = (date?: string): TheatreSlot => ({
-  screenId: "1",
+  screenId: "",
   showTime: getNearestShowtime(date),
   priceReg: "150",
   pricePrem: "250",
@@ -74,6 +79,7 @@ export const AdminPanel: React.FC = () => {
   const [charts, setCharts] = useState<any>(null);
   const [movies, setMovies] = useState<any[]>([]);
   const [shows, setShows] = useState<any[]>([]);
+  const [screenOptions, setScreenOptions] = useState<ScreenOption[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "add-movie" | "add-show" | "manage">("dashboard");
 
   // Add Movie states
@@ -91,8 +97,8 @@ export const AdminPanel: React.FC = () => {
   const [showMovieId, setShowMovieId] = useState("");
   const [showDate, setShowDate] = useState(getToday());
   const [theatreSlots, setTheatreSlots] = useState<TheatreSlot[]>([
-    { ...defaultSlot(getToday()), screenId: "1" },
-    { ...defaultSlot(getToday()), screenId: "3" },
+    defaultSlot(getToday()),
+    defaultSlot(getToday()),
   ]);
   const getMovieTitle = (movieId: number) => {
   const movie = movies.find((m) => m.id === movieId);
@@ -117,13 +123,25 @@ export const AdminPanel: React.FC = () => {
   // ✅ Fix 1: fetchMoviesAndShows defined INSIDE component so it can access setMovies/setShows
   const fetchMoviesAndShows = async () => {
   try {
-    const [moviesRes, showsRes] = await Promise.all([
+    const [moviesRes, showsRes, screensRes] = await Promise.all([
       api.get("/admin/movies"),
       api.get("/admin/shows"),
+      api.get("/admin/screens"),
     ]);
 
     setMovies(moviesRes.data || []);
     setShows(showsRes.data || []);
+    const screens = (screensRes.data || []).map((screen: any) => ({
+      value: String(screen.id),
+      label: `Screen ${screen.number} - ${screen.type} (Theatre #${screen.theatreId}, ID ${screen.id})`,
+    }));
+    setScreenOptions(screens);
+    setTheatreSlots((prev) =>
+      prev.map((slot, idx) => ({
+        ...slot,
+        screenId: slot.screenId || screens[idx]?.value || screens[0]?.value || "",
+      }))
+    );
   } catch (err) {
     console.error("Failed to load movies/shows for manage tab:", err);
   }
@@ -190,6 +208,10 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     setMsg(""); setErr("");
     if (theatreSlots.length < 2) { setErr("Please add at least 2 theatre slots."); return; }
+    if (theatreSlots.some((slot) => !slot.screenId)) {
+      setErr("No screens are available. Please seed screens before scheduling showtimes.");
+      return;
+    }
     try {
       await Promise.all(
         theatreSlots.map((slot) =>
@@ -203,8 +225,12 @@ export const AdminPanel: React.FC = () => {
       );
       setMsg(`${theatreSlots.length} showtime slots scheduled successfully!`);
       setShowMovieId(""); setShowDate(getToday());
-      setTheatreSlots([{ ...defaultSlot(getToday()), screenId: "1" }, { ...defaultSlot(getToday()), screenId: "3" }]);
+      setTheatreSlots([
+        { ...defaultSlot(getToday()), screenId: screenOptions[0]?.value || "" },
+        { ...defaultSlot(getToday()), screenId: screenOptions[1]?.value || screenOptions[0]?.value || "" },
+      ]);
       fetchStats();
+      fetchMoviesAndShows();
     } catch (error: any) {
       setErr(error.response?.data?.error || "Failed to schedule showtime(s).");
     }
@@ -240,13 +266,6 @@ export const AdminPanel: React.FC = () => {
       </div>
     );
   }
-
-  const screenOptions = [
-    { value: "1", label: "Screen 1 — IMAX (Theatre #1)" },
-    { value: "2", label: "Screen 2 — 2D Standard (Theatre #1)" },
-    { value: "3", label: "Screen 3 — IMAX (Theatre #2)" },
-    { value: "4", label: "Screen 4 — 2D Standard (Theatre #2)" },
-  ];
 
   return (
     <div className="min-h-screen bg-background text-white pb-20 font-poppins relative">
@@ -530,7 +549,9 @@ export const AdminPanel: React.FC = () => {
                       <div>
                         <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Screen</label>
                         <select value={slot.screenId} onChange={(e) => updateSlot(idx, "screenId", e.target.value)}
-                          className="w-full p-3 bg-neutral-900 border border-neutral-800 rounded-xl focus:border-primary focus:outline-none text-white">
+                          disabled={screenOptions.length === 0}
+                          className="w-full p-3 bg-neutral-900 border border-neutral-800 rounded-xl focus:border-primary focus:outline-none text-white disabled:opacity-60">
+                          {screenOptions.length === 0 && <option value="">No screens available</option>}
                           {screenOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </div>

@@ -6,7 +6,8 @@ import {
   deleteMovie,
   deleteShow,
   getAllMovies,
-  getAllShows
+  getAllShows,
+  getAllScreens
 } from "../controllers/adminController";
 import { authenticateJWT, requireAdmin } from '../middleware/authMiddleware';
 
@@ -35,4 +36,5 @@ router.delete(
 );
 router.get("/movies", authenticateJWT, requireAdmin, getAllMovies);
 router.get("/shows", authenticateJWT, requireAdmin, getAllShows);
+router.get("/screens", authenticateJWT, requireAdmin, getAllScreens);
 export default router;
