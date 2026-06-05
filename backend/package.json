@@ -15,7 +15,6 @@
     "cinecircle-root": "file:..",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.30.10",
     "express": "^4.19.2",
     "ipaddr.js": "^2.4.0",
     "jsonwebtoken": "^9.0.2",

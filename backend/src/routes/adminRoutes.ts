@@ -3,9 +3,12 @@ import {
   getDashboardStats,
   addMovie,
   addShow,
+  generateShows,
   deleteMovie,
   deleteShow,
+  getAllCities,
   getAllMovies,
+  getAllTheatres,
   getAllShows,
   getAllScreens
 } from "../controllers/adminController";
@@ -18,8 +21,11 @@ console.log({
 });
 router.get('/stats', authenticateJWT, requireAdmin, getDashboardStats);
 
+router.get("/cities", authenticateJWT, requireAdmin, getAllCities);
+router.get("/theatres", authenticateJWT, requireAdmin, getAllTheatres);
 router.post('/movies', authenticateJWT, requireAdmin, addMovie);
 router.post('/shows', authenticateJWT, requireAdmin, addShow);
+router.post("/generate-shows", authenticateJWT, requireAdmin, generateShows);
 
 router.delete(
   '/movies/:id',

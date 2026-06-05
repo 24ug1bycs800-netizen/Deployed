@@ -5,8 +5,8 @@ import {
   integer,
   timestamp,
   boolean,
-  PgTable,
   text,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -80,7 +80,11 @@ export const shows = pgTable("shows", {
   priceRegular: integer("price_regular").default(150).notNull(),
   pricePremium: integer("price_premium").default(250).notNull(),
   priceRecliner: integer("price_recliner").default(450).notNull(),
-});
+}, (table) => ({
+  movieIdIdx: index("shows_movie_id_idx").on(table.movieId),
+  screenIdIdx: index("shows_screen_id_idx").on(table.screenId),
+  dateIdx: index("shows_date_idx").on(table.date),
+}));
 
 // SEATS TABLE
 export const seats = pgTable("seats", {
@@ -106,7 +110,9 @@ export const bookings = pgTable("bookings", {
   status: varchar("status", { length: 50 }).default("pending").notNull(), // 'pending' | 'confirmed' | 'cancelled'
   code: varchar("code", { length: 100 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  showIdIdx: index("bookings_show_id_idx").on(table.showId),
+}));
 
 // BOOKING SEATS (Link table) — surrogate PK to avoid composite key issues
 export const bookingSeats = pgTable("booking_seats", {

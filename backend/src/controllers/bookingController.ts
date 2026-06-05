@@ -9,7 +9,8 @@ import {
   and,
   eq,
   lt,
-  inArray
+  inArray,
+  desc
 } from "drizzle-orm";
 import crypto from "crypto";
 const razorpay = new Razorpay({
@@ -22,35 +23,67 @@ export const getSeatsForShow = async (req: Request, res: Response) => {
   try {
     const showId = parseInt(req.params.showId);
     if (isNaN(showId)) return res.status(400).json({ error: "Invalid show ID" });
- 
-    const dbShows = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
-    const showItem = dbShows[0];
+
+    const showRows = await db
+      .select({
+        id: shows.id,
+        startTime: shows.startTime,
+        date: shows.date,
+        priceRegular: shows.priceRegular,
+        pricePremium: shows.pricePremium,
+        priceRecliner: shows.priceRecliner,
+        screen: {
+          id: screens.id,
+          number: screens.number,
+          type: screens.type,
+          theatreId: screens.theatreId,
+        },
+        theatre: {
+          id: theatres.id,
+          name: theatres.name,
+          address: theatres.address,
+        },
+        movie: {
+          id: movies.id,
+          title: movies.title,
+          description: movies.description,
+          genre: movies.genre,
+          language: movies.language,
+          durationMins: movies.durationMins,
+          rating: movies.rating,
+          ratingValue: movies.ratingValue,
+          releaseDate: movies.releaseDate,
+          trailerUrl: movies.trailerUrl,
+          posterUrl: movies.posterUrl,
+          isNowShowing: movies.isNowShowing,
+          trending: movies.trending,
+          topRated: movies.topRated,
+        },
+      })
+      .from(shows)
+      .innerJoin(screens, eq(shows.screenId, screens.id))
+      .innerJoin(theatres, eq(screens.theatreId, theatres.id))
+      .innerJoin(movies, eq(shows.movieId, movies.id))
+      .where(eq(shows.id, showId))
+      .limit(1);
+
+    const showItem = showRows[0];
     if (!showItem) return res.status(404).json({ error: "Show not found" });
- 
-    const dbScreens = await db.select().from(screens).where(eq(screens.id, showItem.screenId)).limit(1);
-    const screenItem = dbScreens[0];
- 
-    const dbTheatres = await db.select().from(theatres).where(eq(theatres.id, screenItem.theatreId)).limit(1);
-    const theatreItem = dbTheatres[0];
- 
-    const dbMovies = await db.select().from(movies).where(eq(movies.id, showItem.movieId)).limit(1);
-    const movieItem = dbMovies[0];
- 
-    const allSeatsList = await db.select().from(seats).where(eq(seats.screenId, showItem.screenId));
- 
-    // Get booked seat IDs for this show
-    const bookedSeatIds: number[] = [];
-    const activeBookings = await db.select().from(bookings).where(
-      and(eq(bookings.showId, showId), eq(bookings.status, "confirmed"))
-    );
-    for (const booking of activeBookings) {
-      const linkedSeats = await db.select().from(bookingSeats).where(eq(bookingSeats.bookingId, booking.id));
-      linkedSeats.forEach((ls) => bookedSeatIds.push(ls.seatId));
-    }
+
+    const [allSeatsList, bookedSeatsRows] = await Promise.all([
+      db.select().from(seats).where(eq(seats.screenId, showItem.screen.id)),
+      db
+        .select({ seatId: bookingSeats.seatId })
+        .from(bookingSeats)
+        .innerJoin(bookings, eq(bookingSeats.bookingId, bookings.id))
+        .where(and(eq(bookings.showId, showId), eq(bookings.status, "confirmed"))),
+    ]);
+
+    const bookedSeatIds = new Set(bookedSeatsRows.map((seat) => seat.seatId));
  
     const seatsLayout = allSeatsList.map((seat) => ({
       ...seat,
-      status: bookedSeatIds.includes(seat.id) ? "booked" : "available",
+      status: bookedSeatIds.has(seat.id) ? "booked" : "available",
     }));
  
     return res.status(200).json({
@@ -61,9 +94,9 @@ export const getSeatsForShow = async (req: Request, res: Response) => {
         priceRegular: showItem.priceRegular,
         pricePremium: showItem.pricePremium,
         priceRecliner: showItem.priceRecliner,
-        movie: movieItem,
-        screen: screenItem,
-        theatre: theatreItem,
+        movie: showItem.movie,
+        screen: showItem.screen,
+        theatre: showItem.theatre,
       },
       seats: seatsLayout,
     });
@@ -262,33 +295,78 @@ export const verifyPayment = async (req: Request, res: Response) => {
 export const getMyBookings = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const userBookings = await db.select().from(bookings).where(eq(bookings.userId, user.id));
- 
-    const list = [];
-    for (const b of userBookings) {
-      const showItem = await db.select().from(shows).where(eq(shows.id, b.showId)).limit(1);
-      if (!showItem[0]) continue;
- 
-      const movieItem = await db.select().from(movies).where(eq(movies.id, showItem[0].movieId)).limit(1);
-      const screenItem = await db.select().from(screens).where(eq(screens.id, showItem[0].screenId)).limit(1);
-      const theatreItem = await db.select().from(theatres).where(eq(theatres.id, screenItem[0].theatreId)).limit(1);
- 
-      const linkSeats = await db.select().from(bookingSeats).where(eq(bookingSeats.bookingId, b.id));
-      const seatIds = linkSeats.map((ls) => ls.seatId);
-      const allSeats = await db.select().from(seats);
-      const bookedSeats = allSeats.filter((s) => seatIds.includes(s.id));
- 
-      list.push({
-        ...b,
-        show: showItem[0],
-        movie: movieItem[0],
-        theatre: theatreItem[0],
-        screen: screenItem[0],
-        seats: bookedSeats,
-      });
+    const userBookings = await db
+      .select()
+      .from(bookings)
+      .where(eq(bookings.userId, user.id))
+      .orderBy(desc(bookings.id));
+
+    if (userBookings.length === 0) {
+      return res.status(200).json({ bookings: [] });
     }
- 
-    return res.status(200).json({ bookings: list.sort((a, b) => b.id - a.id) });
+
+    const bookingIds = userBookings.map((booking) => booking.id);
+    const showIds = [...new Set(userBookings.map((booking) => booking.showId))];
+
+    const [showRows, bookingSeatRows] = await Promise.all([
+      db
+        .select({
+          show: shows,
+          movie: movies,
+          screen: screens,
+          theatre: theatres,
+        })
+        .from(shows)
+        .innerJoin(movies, eq(shows.movieId, movies.id))
+        .innerJoin(screens, eq(shows.screenId, screens.id))
+        .innerJoin(theatres, eq(screens.theatreId, theatres.id))
+        .where(inArray(shows.id, showIds)),
+      db
+        .select({
+          bookingId: bookingSeats.bookingId,
+          seat: seats,
+        })
+        .from(bookingSeats)
+        .innerJoin(seats, eq(bookingSeats.seatId, seats.id))
+        .where(inArray(bookingSeats.bookingId, bookingIds)),
+    ]);
+
+    const showMap = new Map(
+      showRows.map((row) => [
+        row.show.id,
+        {
+          show: row.show,
+          movie: row.movie,
+          theatre: row.theatre,
+          screen: row.screen,
+        },
+      ])
+    );
+
+    const seatsByBooking = new Map<number, typeof seats.$inferSelect[]>();
+    bookingSeatRows.forEach((row) => {
+      const existing = seatsByBooking.get(row.bookingId) || [];
+      existing.push(row.seat);
+      seatsByBooking.set(row.bookingId, existing);
+    });
+
+    const list = userBookings
+      .map((booking) => {
+        const details = showMap.get(booking.showId);
+        if (!details) return null;
+
+        return {
+          ...booking,
+          show: details.show,
+          movie: details.movie,
+          theatre: details.theatre,
+          screen: details.screen,
+          seats: seatsByBooking.get(booking.id) || [],
+        };
+      })
+      .filter(Boolean);
+
+    return res.status(200).json({ bookings: list });
   } catch (err) {
     console.error("Fetch bookings error:", err);
     return res.status(500).json({ error: "Internal server error fetching booking history" });
