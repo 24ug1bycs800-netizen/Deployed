@@ -216,7 +216,7 @@ export const getMyGroupRooms = async (req: Request, res: Response) => {
       filteredRooms.map(async (r) => {
         const creator = await db.select().from(users).where(eq(users.id, r.creatorId)).limit(1);
         const membersCount = (await db.select().from(groupMembers).where(eq(groupMembers.roomId, r.id))).length;
-        let movie = null;
+        let movie: typeof movies.$inferSelect | null = null;
         if (r.selectedMovieId) {
           const dbMovie = await db.select().from(movies).where(eq(movies.id, r.selectedMovieId)).limit(1);
           movie = dbMovie[0] || null;
