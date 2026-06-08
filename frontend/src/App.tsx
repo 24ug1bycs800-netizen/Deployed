@@ -1,15 +1,23 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
 import { Footer } from './components/Footer.js';
-import { Home } from './pages/Home.js';
-import { Auth } from './pages/Auth.js';
-import { MovieDetails } from './pages/MovieDetails.js';
-import { SeatBooking } from './pages/SeatBooking.js';
-import { GroupBooking } from './pages/GroupBooking.js';
-import { GroupRoomsList } from './pages/GroupRoomsList.js';
-import { Dashboard } from './pages/Dashboard.js';
-import { AdminPanel } from './pages/AdminPanel.js';
+
+const Home = lazy(() => import('./pages/Home.js').then(m => ({ default: m.Home })));
+const Auth = lazy(() => import('./pages/Auth.js').then(m => ({ default: m.Auth })));
+const MovieDetails = lazy(() => import('./pages/MovieDetails.js').then(m => ({ default: m.MovieDetails })));
+const SeatBooking = lazy(() => import('./pages/SeatBooking.js').then(m => ({ default: m.SeatBooking })));
+const GroupBooking = lazy(() => import('./pages/GroupBooking.js').then(m => ({ default: m.GroupBooking })));
+const GroupRoomsList = lazy(() => import('./pages/GroupRoomsList.js').then(m => ({ default: m.GroupRoomsList })));
+const Dashboard = lazy(() => import('./pages/Dashboard.js').then(m => ({ default: m.Dashboard })));
+const AdminPanel = lazy(() => import('./pages/AdminPanel.js').then(m => ({ default: m.AdminPanel })));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center" style={{ background: '#080808' }}>
+    <div className="w-10 h-10 rounded-full border-t-2 animate-spin" style={{ borderColor: '#d4af37' }} />
+  </div>
+);
 
 function App() {
   return (
@@ -18,16 +26,18 @@ function App() {
         <div className="min-h-screen bg-background flex flex-col justify-between select-none">
           <div>
             <Navbar />
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/movies/:id" element={<MovieDetails />} />
-              <Route path="/shows/:showId/booking" element={<SeatBooking />} />
-              <Route path="/group/:inviteCode" element={<GroupBooking />} />
-              <Route path="/groups" element={<GroupRoomsList />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/admin" element={<AdminPanel />} />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/movies/:id" element={<MovieDetails />} />
+                <Route path="/shows/:showId/booking" element={<SeatBooking />} />
+                <Route path="/group/:inviteCode" element={<GroupBooking />} />
+                <Route path="/groups" element={<GroupRoomsList />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/admin" element={<AdminPanel />} />
+              </Routes>
+            </Suspense>
           </div>
           <Footer />
         </div>

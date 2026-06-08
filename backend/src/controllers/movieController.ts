@@ -1,9 +1,12 @@
 import { Request, Response } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { db } from "../db/db";
 import { cities, movies, reviews, screens, shows, theatres } from "../db/schema";
 
 const parseInteger = (value: unknown) => Number.parseInt(String(value), 10);
+
+// Returns ISO date string for today (YYYY-MM-DD)
+const getToday = () => new Date().toISOString().slice(0, 10);
 
 // GET CITIES
 export const getCities = async (_req: Request, res: Response) => {
@@ -74,9 +77,7 @@ export const getTheatres = async (req: Request, res: Response) => {
         .from(cities)
         .where(eq(cities.slug, String(citySlug)))
         .limit(1);
-      if (!cityResult[0]) {
-        return res.status(200).json({ theatres: [] });
-      }
+      if (!cityResult[0]) return res.status(200).json({ theatres: [] });
 
       const theatresList = await db
         .select()
@@ -103,7 +104,9 @@ export const getTheatres = async (req: Request, res: Response) => {
   }
 };
 
-// GET SHOWS (supports movieId + citySlug + theatreId filters)
+// GET SHOWS
+// Filters: only active status + date >= today → users never see expired/past shows.
+// This applies everywhere: home, movie details, theatre pages, group planning, booking flow.
 export const getShows = async (req: Request, res: Response) => {
   try {
     const { movieId, citySlug, theatreId } = req.query;
@@ -111,7 +114,7 @@ export const getShows = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "movieId required" });
     }
 
-    const conditions = [eq(shows.movieId, parseInteger(String(movieId)))];
+    const today = getToday();
     const theatreInt = theatreId ? parseInteger(String(theatreId)) : NaN;
 
     let cityId: number | null = null;
@@ -121,9 +124,7 @@ export const getShows = async (req: Request, res: Response) => {
         .from(cities)
         .where(eq(cities.slug, String(citySlug)))
         .limit(1);
-      if (!cityResult[0]) {
-        return res.status(200).json({ shows: [] });
-      }
+      if (!cityResult[0]) return res.status(200).json({ shows: [] });
       cityId = cityResult[0].id;
     }
 
@@ -132,11 +133,13 @@ export const getShows = async (req: Request, res: Response) => {
         id: shows.id,
         movieId: shows.movieId,
         screenId: shows.screenId,
+        language: shows.language,
         startTime: shows.startTime,
         date: shows.date,
         priceRegular: shows.priceRegular,
         pricePremium: shows.pricePremium,
         priceRecliner: shows.priceRecliner,
+        status: shows.status,
         screen: {
           id: screens.id,
           number: screens.number,
@@ -154,7 +157,11 @@ export const getShows = async (req: Request, res: Response) => {
       .innerJoin(theatres, eq(screens.theatreId, theatres.id))
       .where(
         and(
-          ...conditions,
+          eq(shows.movieId, parseInteger(String(movieId))),
+          // Only active shows
+          ne(shows.status, "expired"),
+          // Only today or future dates
+          sql`${shows.date} >= ${today}`,
           Number.isNaN(theatreInt) ? undefined : eq(theatres.id, theatreInt),
           cityId === null ? undefined : eq(theatres.cityId, cityId)
         )

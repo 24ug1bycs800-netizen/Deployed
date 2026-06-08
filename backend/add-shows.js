@@ -15,6 +15,7 @@ db.shows.forEach(show => {
       id: nextId++,
       movieId: show.movieId,
       screenId: show.screenId,
+      language: show.language,
       startTime: time,
       date: show.date,
       priceRegular: show.priceRegular,

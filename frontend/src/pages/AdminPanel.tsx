@@ -1,288 +1,431 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.js";
-import { useCityStore } from "../store/useCityStore.js";
 import {
   LayoutDashboard, Film, Calendar, PlusCircle, AlertCircle,
   CheckCircle, BarChart3, LineChart, PieChart, Users, Wallet,
-  Compass, Plus, Trash2,
+  Compass, Trash2, Search, MapPin, ChevronRight, ChevronDown,
+  Clock, Check, X, Plus, Layers,
 } from "lucide-react";
 import api from "../services/api.js";
 
-interface KPI {
-  totalRevenue: number;
-  totalBookings: number;
-  totalUsers: number;
-  activeGroupRooms: number;
-}
+// ─── TYPES ────────────────────────────────────────────────────────────────────
+interface KPI { totalRevenue: number; totalBookings: number; totalUsers: number; activeGroupRooms: number; }
+interface AdminMovie { id: number; title: string; language: string; genre: string; posterUrl: string; isNowShowing: boolean; }
+interface AdminTheatre { id: number; name: string; cityId: number; address: string; }
+interface AdminShow { id: number; movieId: number; movieTitle: string; moviePosterUrl: string; movieLanguage: string; language?: string; screenId: number; screenNumber: number; screenType: string; theatreId: number; theatreName: string; cityId: number; cityName: string; startTime: string; date: string; priceRegular: number; pricePremium: number; priceRecliner: number; status: string; }
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const ALL_TIMES = ["09:00 AM", "10:00 AM", "12:30 PM", "02:00 PM", "03:45 PM", "06:30 PM", "09:30 PM", "11:45 PM"];
 
 const getToday = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 };
-
-const ALL_SHOWTIMES = [
-  { label: "09:00 AM", hour: 9 },
-  { label: "12:30 PM", hour: 12 },
-  { label: "03:45 PM", hour: 15 },
-  { label: "06:30 PM", hour: 18 },
-  { label: "09:30 PM", hour: 21 },
-  { label: "11:45 PM", hour: 23 },
-];
-
-const getAvailableShowtimes = (selectedDate: string): string[] => {
-  const isToday = selectedDate === getToday();
-  if (!isToday) return ALL_SHOWTIMES.map((s) => s.label);
-  const currentHour = new Date().getHours();
-  return ALL_SHOWTIMES.filter((s) => s.hour > currentHour).map((s) => s.label);
-};
-
-const getNearestShowtime = (selectedDate?: string): string => {
-  const available = getAvailableShowtimes(selectedDate ?? getToday());
-  return available[0] ?? "09:00 AM";
-};
-
-interface TheatreSlot {
-  screenId: string;
-  showTime: string;
-  priceReg: string;
-  pricePrem: string;
-  priceRec: string;
-}
-
-interface ScreenOption {
-  value: string;
-  label: string;
-}
-
-const defaultSlot = (date?: string): TheatreSlot => ({
-  screenId: "",
-  showTime: getNearestShowtime(date),
-  priceReg: "150",
-  pricePrem: "250",
-  priceRec: "450",
-});
 
 const TAB_LABELS: Record<string, string> = {
-  "dashboard": "Analytics Dashboard",
-  "add-movie": "Add New Movie",
-  "add-show": "Schedule Showtime",
-  "manage": "Manage Data",
+  dashboard: "Analytics", "add-movie": "Add Movie",
+  "add-show": "Schedule Show", manage: "Manage Data",
 };
 
+const MOVIE_LANGUAGES = ["Hindi", "Kannada", "Tamil", "Telugu", "Malayalam", "English"];
+
+// ─── SMALL UI HELPERS ─────────────────────────────────────────────────────────
+const inputCls = "w-full p-3 bg-neutral-950 border border-neutral-800 rounded-xl focus:border-[#d4af37] focus:outline-none text-white text-xs font-inter transition-colors";
+const selectCls = `${inputCls} appearance-none cursor-pointer`;
+
+const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <label className="block text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">{children}</label>
+);
+
+const GoldBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }> = ({ children, loading, className = "", ...props }) => (
+  <button
+    {...props}
+    disabled={props.disabled || loading}
+    className={`px-6 py-3 rounded-xl font-black text-xs flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+    style={{ background: "linear-gradient(135deg, #d4af37, #f4d03f)", color: "#000", boxShadow: "0 4px 16px rgba(212,175,55,0.25)" }}
+  >
+    {loading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : children}
+  </button>
+);
+
+const GhostBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ children, className = "", ...props }) => (
+  <button
+    {...props}
+    className={`px-4 py-2.5 rounded-xl font-bold text-xs border transition-all hover:border-neutral-600 ${className}`}
+    style={{ background: "transparent", borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}
+  >
+    {children}
+  </button>
+);
+
+const StatusPill: React.FC<{ status: string }> = ({ status }) => (
+  <span
+    className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider"
+    style={status === "active"
+      ? { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }
+      : { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }
+    }
+  >
+    {status}
+  </span>
+);
+
+// ─── STEP INDICATOR ───────────────────────────────────────────────────────────
+const WizardSteps: React.FC<{ step: number }> = ({ step }) => {
+  const steps = ["Location", "Movie", "Schedule", "Preview"];
+  return (
+    <div className="flex items-center mb-8">
+      {steps.map((label, i) => (
+        <React.Fragment key={i}>
+          <div className="flex items-center gap-2">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0 transition-all"
+              style={
+                i + 1 < step
+                  ? { background: "#d4af37", color: "#000" }
+                  : i + 1 === step
+                  ? { background: "#d4af37", color: "#000", boxShadow: "0 0 0 4px rgba(212,175,55,0.2)" }
+                  : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.08)" }
+              }
+            >
+              {i + 1 < step ? <Check className="w-3.5 h-3.5" /> : i + 1}
+            </div>
+            <span
+              className="text-xs font-bold hidden sm:block"
+              style={{ color: i + 1 <= step ? "#fff" : "rgba(255,255,255,0.25)" }}
+            >
+              {label}
+            </span>
+          </div>
+          {i < 3 && (
+            <div
+              className="flex-1 h-px mx-3"
+              style={{ background: i + 1 < step ? "#d4af37" : "rgba(255,255,255,0.06)" }}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export const AdminPanel: React.FC = () => {
   const { user } = useAuth();
-  const {} = useCityStore();
   const navigate = useNavigate();
 
+  // ── Dashboard ────────────────────────────────────────────────────────────────
   const [kpi, setKpi] = useState<KPI | null>(null);
   const [charts, setCharts] = useState<any>(null);
-  const [movies, setMovies] = useState<any[]>([]);
-  const [shows, setShows] = useState<any[]>([]);
-  const [screenOptions, setScreenOptions] = useState<ScreenOption[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "add-movie" | "add-show" | "manage">("dashboard");
 
-  // Add Movie states
+  // ── Shared data ──────────────────────────────────────────────────────────────
+  const [movies, setMovies] = useState<AdminMovie[]>([]);
+  const [shows, setShows] = useState<AdminShow[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [theatreList, setTheatreList] = useState<AdminTheatre[]>([]);
+
+  // ── UI state ─────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"dashboard" | "add-movie" | "add-show" | "manage">("dashboard");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  // ── Add Movie form ────────────────────────────────────────────────────────────
   const [movieTitle, setMovieTitle] = useState("");
   const [movieDesc, setMovieDesc] = useState("");
   const [movieGenre, setMovieGenre] = useState("");
-  const [movieLang, setMovieLang] = useState("Hindi");
+  const [movieLangs, setMovieLangs] = useState<string[]>(["Hindi"]);
   const [movieDur, setMovieDur] = useState("135");
   const [movieRating, setMovieRating] = useState("UA");
   const [movieRel, setMovieRel] = useState(getToday());
-  const [moviePoster, setMoviePoster] = useState("/assets/chand_mera_dil.jpg");
+  const [moviePoster, setMoviePoster] = useState("");
+  const [movieTrailer, setMovieTrailer] = useState("");
   const [movieShowing, setMovieShowing] = useState(true);
 
-  // Add Show states
-  const [showMovieId, setShowMovieId] = useState("");
-  const [showDate, setShowDate] = useState(getToday());
-  const [theatreSlots, setTheatreSlots] = useState<TheatreSlot[]>([
-    defaultSlot(getToday()),
-    defaultSlot(getToday()),
-  ]);
-  const getMovieTitle = (movieId: number) => {
-  const movie = movies.find((m) => m.id === movieId);
-  return movie ? movie.title : `Movie ${movieId}`;
-};
+  const toggleMovieLanguage = (language: string) => {
+    setMovieLangs((current) => {
+      if (current.includes(language)) {
+        return current.filter((item) => item !== language);
+      }
+      return [...current, language];
+    });
+  };
 
-  const groupedShows = shows.reduce((acc, show) => {
-  const movieTitle = getMovieTitle(show.movieId);
+  // ── Wizard (add-show) ─────────────────────────────────────────────────────────
+  const [wStep, setWStep] = useState<1 | 2 | 3 | 4>(1);
+  // Step 1 – Location
+  const [wCity, setWCity] = useState<{ id: number; name: string } | null>(null);
+  const [wTheatre, setWTheatre] = useState<{ id: number; name: string } | null>(null);
+  const [wScreen, setWScreen] = useState<{ id: number; number: number; type: string } | null>(null);
+  const [wTheatres, setWTheatres] = useState<any[]>([]);
+  const [wScreens, setWScreens] = useState<any[]>([]);
+  const [loadingTheatres, setLoadingTheatres] = useState(false);
+  const [loadingScreens, setLoadingScreens] = useState(false);
+  // Step 2 – Movie
+  const [wMovie, setWMovie] = useState<AdminMovie | null>(null);
+  const [wMovieSearch, setWMovieSearch] = useState("");
+  const [wShowLanguage, setWShowLanguage] = useState("");
+  // Step 3 – Schedule
+  const [wMode, setWMode] = useState<"auto7" | "custom">("auto7");
+  const [wCustomDate, setWCustomDate] = useState(getToday());
+  const [wTimes, setWTimes] = useState(["10:00 AM", "02:00 PM"]);
+  const [wPriceReg, setWPriceReg] = useState("150");
+  const [wPricePrem, setWPricePrem] = useState("250");
+  const [wPriceRec, setWPriceRec] = useState("450");
+  const [wLoading, setWLoading] = useState(false);
 
-  if (!acc[movieTitle]) {
-    acc[movieTitle] = [];
-  }
+  // ── Manage tab ────────────────────────────────────────────────────────────────
+  const [manageSearch, setManageSearch] = useState("");
+  const [manageCityFilter, setManageCityFilter] = useState<number | "">("");
+  const [expandedMovies, setExpandedMovies] = useState<Set<number>>(new Set());
+  const [newTheatreCityId, setNewTheatreCityId] = useState("");
+  const [newTheatreName, setNewTheatreName] = useState("");
+  const [newTheatreAddress, setNewTheatreAddress] = useState("");
+  const [newScreenTheatreId, setNewScreenTheatreId] = useState("");
+  const [newScreenNumber, setNewScreenNumber] = useState("1");
+  const [newScreenType, setNewScreenType] = useState("2D");
 
-  acc[movieTitle].push(show);
-
-  return acc;
-}, {} as Record<string, any[]>);
-
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  
-  // ✅ Fix 1: fetchMoviesAndShows defined INSIDE component so it can access setMovies/setShows
-  const fetchMoviesAndShows = async () => {
-  try {
-    const [moviesRes, showsRes, screensRes] = await Promise.all([
-      api.get("/admin/movies"),
-      api.get("/admin/shows"),
-      api.get("/admin/screens"),
-    ]);
-
-    setMovies(moviesRes.data || []);
-    setShows(showsRes.data || []);
-    const screens = (screensRes.data || []).map((screen: any) => ({
-      value: String(screen.id),
-      label: `Screen ${screen.number} - ${screen.type} (Theatre #${screen.theatreId}, ID ${screen.id})`,
-    }));
-    setScreenOptions(screens);
-    setTheatreSlots((prev) =>
-      prev.map((slot, idx) => ({
-        ...slot,
-        screenId: slot.screenId || screens[idx]?.value || screens[0]?.value || "",
-      }))
-    );
-  } catch (err) {
-    console.error("Failed to load movies/shows for manage tab:", err);
-  }
-};
-
+  // ─── DATA FETCHING ─────────────────────────────────────────────────────────
   const fetchStats = async () => {
     try {
       const res = await api.get("/admin/stats");
       setKpi(res.data.kpi);
       setCharts(res.data.charts);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchAll = async () => {
+    try {
+      const [moviesRes, showsRes, citiesRes, theatresRes] = await Promise.all([
+        api.get("/admin/movies"),
+        api.get("/admin/shows"),
+        api.get("/admin/cities"),
+        api.get("/admin/theatres"),
+      ]);
+      setMovies(moviesRes.data || []);
+      setShows(showsRes.data || []);
+      setCityList(citiesRes.data || []);
+      setTheatreList(theatresRes.data || []);
+    } catch (e) { console.error("fetchAll error:", e); }
   };
 
   useEffect(() => {
-    if (!user || user.role !== "admin") {
-      navigate("/");
-      return;
-    }
+    if (!user || user.role !== "admin") { navigate("/"); return; }
     fetchStats();
-    fetchMoviesAndShows();
+    fetchAll();
   }, [user]);
 
-  const updateSlot = (idx: number, field: keyof TheatreSlot, value: string) => {
-    setTheatreSlots((prev) => prev.map((slot, i) => (i === idx ? { ...slot, [field]: value } : slot)));
+  // Cascade: city → theatres
+  useEffect(() => {
+    if (!wCity) { setWTheatres([]); setWTheatre(null); setWScreens([]); setWScreen(null); return; }
+    setLoadingTheatres(true);
+    api.get(`/admin/theatres?cityId=${wCity.id}`)
+      .then(r => setWTheatres(r.data || []))
+      .catch(() => setWTheatres([]))
+      .finally(() => setLoadingTheatres(false));
+  }, [wCity]);
+
+  // Cascade: theatre → screens
+  useEffect(() => {
+    if (!wTheatre) { setWScreens([]); setWScreen(null); return; }
+    setLoadingScreens(true);
+    api.get(`/admin/screens?theatreId=${wTheatre.id}`)
+      .then(r => setWScreens(r.data || []))
+      .catch(() => setWScreens([]))
+      .finally(() => setLoadingScreens(false));
+  }, [wTheatre]);
+
+  // ─── WIZARD HANDLERS ───────────────────────────────────────────────────────
+  const resetWizard = () => {
+    setWStep(1); setWCity(null); setWTheatre(null); setWScreen(null);
+    setWMovie(null); setWMovieSearch(""); setWShowLanguage("");
+    setWMode("auto7"); setWCustomDate(getToday());
+    setWTimes(["10:00 AM", "02:00 PM"]);
+    setWPriceReg("150"); setWPricePrem("250"); setWPriceRec("450");
   };
 
-  const addSlot = () => setTheatreSlots((prev) => [...prev, defaultSlot(showDate)]);
-
-  const handleDateChange = (value: string) => {
-    setShowDate(value);
-    const firstAvailable = getNearestShowtime(value);
-    setTheatreSlots((prev) => prev.map((slot) => ({ ...slot, showTime: firstAvailable })));
-  };
-
-  const removeSlot = (idx: number) => {
-    if (theatreSlots.length <= 2) {
-      setErr("Minimum 2 theatre slots are required per movie.");
-      return;
+  const handleGenerateShows = async () => {
+    if (!wMovie) return;
+    setWLoading(true); setMsg(""); setErr("");
+    try {
+      const payload: Record<string, unknown> = {
+        movieId: wMovie.id,
+        cityIds: wCity ? [wCity.id] : cityList.map((c: any) => c.id),
+        theatreIds: wCity && wTheatre ? [wTheatre.id] : [],
+        screenIds: wCity && wScreen ? [wScreen.id] : [],
+        startTimes: wTimes,
+        language: wShowLanguage || wMovie.language.split(",")[0]?.trim(),
+        priceRegular: parseInt(wPriceReg) || 150,
+        pricePremium: parseInt(wPricePrem) || 250,
+        priceRecliner: parseInt(wPriceRec) || 450,
+      };
+      if (wMode === "auto7") {
+        payload.days = 7;
+      } else {
+        payload.days = 1;
+        payload.startDate = wCustomDate;
+      }
+      const res = await api.post("/admin/generate-shows", payload);
+      const { created, skipped, screens: matchedScreens } = res.data;
+      if (created === 0 && skipped > 0) {
+        setErr(
+          `No free screen slots found. ${matchedScreens || 0} screen${matchedScreens === 1 ? "" : "s"} matched your selection, but all selected time slots are already occupied. Add another screen to this theatre or choose a different time.`
+        );
+      } else {
+        setMsg(`${created} shows created${skipped > 0 ? ` (${skipped} occupied slots skipped)` : ""}`);
+        resetWizard();
+      }
+      fetchAll();
+    } catch (error: any) {
+      setErr(error.response?.data?.error || "Failed to generate shows");
+    } finally {
+      setWLoading(false);
     }
-    setTheatreSlots((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleAddMovie = async (e: React.FormEvent) => {
+  // ─── MANAGE HANDLERS ───────────────────────────────────────────────────────
+  const handleDeleteShow = async (id: number) => {
+    if (!window.confirm("Delete this show?")) return;
+    try {
+      await api.delete(`/admin/shows/${id}`);
+      setMsg("Show deleted");
+      fetchAll();
+    } catch { setErr("Failed to delete show"); }
+  };
+
+  const handleDeleteMovie = async (id: number) => {
+    if (!window.confirm("Delete this movie and all its shows?")) return;
+    try {
+      await api.delete(`/admin/movies/${id}`);
+      setMsg("Movie deleted");
+      fetchAll();
+    } catch { setErr("Failed to delete movie"); }
+  };
+
+  const handleAddTheatre = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(""); setErr("");
     try {
+      await api.post("/admin/theatres", {
+        name: newTheatreName,
+        cityId: parseInt(newTheatreCityId),
+        address: newTheatreAddress,
+      });
+      setMsg("Theatre added. Add screens to it before scheduling shows.");
+      setNewTheatreName(""); setNewTheatreAddress("");
+      fetchAll();
+    } catch (error: any) {
+      setErr(error.response?.data?.error || "Failed to add theatre.");
+    }
+  };
+
+  const handleAddScreen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(""); setErr("");
+    try {
+      await api.post("/admin/screens", {
+        theatreId: parseInt(newScreenTheatreId),
+        number: parseInt(newScreenNumber),
+        type: newScreenType,
+      });
+      setMsg("Screen added with default seats. You can schedule shows on it now.");
+      setNewScreenNumber("1"); setNewScreenType("2D");
+      fetchAll();
+    } catch (error: any) {
+      setErr(error.response?.data?.error || "Failed to add screen.");
+    }
+  };
+
+
+
+  // ─── ADD MOVIE HANDLER ─────────────────────────────────────────────────────
+  const handleAddMovie = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(""); setErr("");
+    if (movieLangs.length === 0) {
+      setErr("Please select at least one language.");
+      return;
+    }
+    try {
       await api.post("/admin/movies", {
         title: movieTitle, description: movieDesc, genre: movieGenre,
-        language: movieLang, durationMins: parseInt(movieDur), rating: movieRating,
-        releaseDate: movieRel, posterUrl: moviePoster, isNowShowing: movieShowing,
+        language: movieLangs, durationMins: parseInt(movieDur),
+        rating: movieRating, releaseDate: movieRel,
+        posterUrl: moviePoster, trailerUrl: movieTrailer.trim(), isNowShowing: movieShowing,
       });
       setMsg("Movie added successfully!");
-      setMovieTitle(""); setMovieDesc(""); setMovieGenre("");
-      fetchStats();
-      fetchMoviesAndShows();
+      setMovieTitle(""); setMovieDesc(""); setMovieGenre(""); setMoviePoster("");
+      setMovieTrailer(""); setMovieLangs(["Hindi"]);
+      fetchAll();
     } catch (error: any) {
       setErr(error.response?.data?.error || "Failed to add movie.");
     }
   };
 
-  const handleAddShow = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(""); setErr("");
-    if (theatreSlots.length < 2) { setErr("Please add at least 2 theatre slots."); return; }
-    if (theatreSlots.some((slot) => !slot.screenId)) {
-      setErr("No screens are available. Please seed screens before scheduling showtimes.");
-      return;
+  // ─── SHOWS BY MOVIE (manage tab) ──────────────────────────────────────────
+  const showsByMovie = useMemo(() => {
+    const q = manageSearch.toLowerCase();
+    const result: Record<number, AdminShow[]> = {};
+    for (const show of shows) {
+      if (manageCityFilter && show.cityId !== manageCityFilter) continue;
+      if (q &&
+        !show.movieTitle?.toLowerCase().includes(q) &&
+        !show.theatreName?.toLowerCase().includes(q) &&
+        !show.cityName?.toLowerCase().includes(q)) continue;
+      if (!result[show.movieId]) result[show.movieId] = [];
+      result[show.movieId].push(show);
     }
-    try {
-      await Promise.all(
-        theatreSlots.map((slot) =>
-          api.post("/admin/shows", {
-            movieId: parseInt(showMovieId), screenId: parseInt(slot.screenId),
-            startTime: slot.showTime, date: showDate,
-            priceRegular: parseInt(slot.priceReg), pricePremium: parseInt(slot.pricePrem),
-            priceRecliner: parseInt(slot.priceRec),
-          })
-        )
-      );
-      setMsg(`${theatreSlots.length} showtime slots scheduled successfully!`);
-      setShowMovieId(""); setShowDate(getToday());
-      setTheatreSlots([
-        { ...defaultSlot(getToday()), screenId: screenOptions[0]?.value || "" },
-        { ...defaultSlot(getToday()), screenId: screenOptions[1]?.value || screenOptions[0]?.value || "" },
-      ]);
-      fetchStats();
-      fetchMoviesAndShows();
-    } catch (error: any) {
-      setErr(error.response?.data?.error || "Failed to schedule showtime(s).");
-    }
-  };
+    return result;
+  }, [shows, manageSearch, manageCityFilter]);
 
-  // ✅ Fix 2: Delete handlers use correct routes
-  const handleDeleteMovie = async (id: number) => {
-    if (!window.confirm("Delete this movie?")) return;
-    try {
-      await api.delete(`/admin/movies/${id}`);
-      setMsg("Movie deleted successfully");
-      fetchMoviesAndShows();
-    } catch (e) {
-      setErr("Failed to delete movie");
-    }
-  };
-
-  const handleDeleteShow = async (id: number) => {
-    if (!window.confirm("Delete this show?")) return;
-    try {
-      await api.delete(`/admin/shows/${id}`);
-      setMsg("Show deleted successfully");
-      fetchMoviesAndShows();
-    } catch (e) {
-      setErr("Failed to delete show");
-    }
-  };
-
-  if (!kpi || !charts) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-white">
-        <div className="w-12 h-12 border-t-2 border-primary border-solid rounded-full animate-spin"></div>
-      </div>
+  const filteredMovies = useMemo(() => {
+    const q = manageSearch.toLowerCase();
+    if (!q && !manageCityFilter) return movies;
+    return movies.filter(m =>
+      m.title.toLowerCase().includes(q) || (showsByMovie[m.id]?.length ?? 0) > 0
     );
-  }
+  }, [movies, manageSearch, manageCityFilter, showsByMovie]);
+
+  const filteredMoviesForWizard = useMemo(() =>
+    movies.filter(m => !wMovieSearch || m.title.toLowerCase().includes(wMovieSearch.toLowerCase())),
+    [movies, wMovieSearch]
+  );
+
+  const movieLanguageOptions = useMemo(
+    () => (wMovie?.language || "")
+      .split(",")
+      .map(language => language.trim())
+      .filter(Boolean),
+    [wMovie]
+  );
+
+  // ─── ESTIMATED SHOWS COUNT ─────────────────────────────────────────────────
+  const estimatedShows = useMemo(() => {
+    const days = wMode === "auto7" ? 7 : 1;
+    // When All Cities: we don't have exact screen counts, show per-city estimate × city count
+    if (!wCity) return `${cityList.length}+ cities`;
+    const screensCount = wScreen ? 1 : wTheatre ? wScreens.length : wTheatres.length || 1;
+    return days * wTimes.length * screensCount;
+  }, [wMode, wScreen, wTheatre, wScreens, wCity, wTheatres, wTimes, cityList]);
+
+  // ─── CARD ─────────────────────────────────────────────────────────────────
+  const card = "p-6 rounded-2xl border border-neutral-900"
+  const cardDark = `${card} bg-[#0d0d0d]`;
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20 font-poppins relative">
+    <div className="min-h-screen bg-background text-white pb-20 font-poppins">
       <div className="max-w-7xl mx-auto px-6 sm:px-12 py-12 space-y-8">
 
-        {/* HEADER */}
+        {/* ── HEADER ────────────────────────────────────────────────────────── */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-neutral-900 pb-6 gap-4">
           <div>
             <h1 className="text-3xl font-black text-white tracking-wider flex items-center gap-2">
               <LayoutDashboard className="w-8 h-8 text-primary" /> Admin Console
             </h1>
             <p className="text-xs text-neutral-500 font-inter mt-1.5">
-              Overview of CineCircle operations, transactional revenues, and database inventory.
+              CineCircle operations dashboard — movies, scheduling, analytics, lifecycle management.
             </p>
           </div>
-
-          {/* ✅ Fix 3: Tab labels now correctly inside the map */}
           <div className="flex gap-2 text-xs font-semibold flex-wrap">
             {(["dashboard", "add-movie", "add-show", "manage"] as const).map((tab) => (
               <button
@@ -290,8 +433,8 @@ export const AdminPanel: React.FC = () => {
                 onClick={() => { setActiveTab(tab); setMsg(""); setErr(""); }}
                 className={`px-4 py-2 rounded-xl border transition-all ${
                   activeTab === tab
-                    ? "border-primary bg-primary bg-opacity-20 text-white"
-                    : "border-neutral-900 bg-neutral-950 bg-opacity-40 text-muted"
+                    ? "border-[#d4af37] bg-[#d4af37]/10 text-white"
+                    : "border-neutral-900 bg-neutral-950/40 text-neutral-500 hover:border-neutral-700"
                 }`}
               >
                 {TAB_LABELS[tab]}
@@ -300,123 +443,127 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* ALERTS */}
+        {/* ── ALERTS ────────────────────────────────────────────────────────── */}
         {msg && (
-          <div className="p-4 bg-success bg-opacity-10 border border-success border-opacity-30 rounded-xl flex items-center gap-2 text-sm text-green-400 font-inter">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />{msg}
+          <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl flex items-center gap-2 text-sm text-green-400 font-inter">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" /> {msg}
           </div>
         )}
         {err && (
-          <div className="p-4 bg-error bg-opacity-10 border border-error border-opacity-30 rounded-xl flex items-center gap-2.5 text-sm text-red-400 font-inter">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />{err}
+          <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex items-center gap-2.5 text-sm text-red-400 font-inter">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" /> {err}
           </div>
         )}
 
-        {/* ── ANALYTICS DASHBOARD ── */}
-        {activeTab === "dashboard" && (
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── ANALYTICS DASHBOARD ────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === "dashboard" && (!kpi || !charts ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className={`${cardDark} animate-pulse`}>
+                <div className="w-10 h-10 rounded-xl bg-neutral-800 mb-4" />
+                <div className="w-24 h-2.5 rounded-full bg-neutral-800 mb-3" />
+                <div className="w-16 h-6 rounded-full bg-neutral-800" />
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-                <div className="p-2.5 bg-primary bg-opacity-10 rounded-xl w-fit mb-4"><Wallet className="w-5 h-5 text-primary" /></div>
-                <span className="block text-xs text-neutral-500 font-inter">Total Revenue</span>
-                <strong className="text-xl sm:text-2xl font-black text-white mt-1.5 block">Rs {kpi.totalRevenue}</strong>
-              </div>
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-                <div className="p-2.5 bg-accent bg-opacity-10 rounded-xl w-fit mb-4"><Film className="w-5 h-5 text-accent" /></div>
-                <span className="block text-xs text-neutral-500 font-inter">Total Bookings</span>
-                <strong className="text-xl sm:text-2xl font-black text-white mt-1.5 block">{kpi.totalBookings} tickets</strong>
-              </div>
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-                <div className="p-2.5 bg-indigo-600 bg-opacity-10 rounded-xl w-fit mb-4"><Users className="w-5 h-5 text-indigo-400" /></div>
-                <span className="block text-xs text-neutral-500 font-inter">Registered Users</span>
-                <strong className="text-xl sm:text-2xl font-black text-white mt-1.5 block">{kpi.totalUsers} users</strong>
-              </div>
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-                <div className="p-2.5 bg-success bg-opacity-10 rounded-xl w-fit mb-4"><BarChart3 className="w-5 h-5 text-success" /></div>
-                <span className="block text-xs text-neutral-500 font-inter">Planning Rooms</span>
-                <strong className="text-xl sm:text-2xl font-black text-white mt-1.5 block">{kpi.activeGroupRooms} active</strong>
-              </div>
+              {[
+                { icon: <Wallet className="w-5 h-5 text-primary" />, label: "Total Revenue", value: `Rs ${kpi.totalRevenue}`, bg: "bg-primary/10" },
+                { icon: <Film className="w-5 h-5 text-accent" />, label: "Total Bookings", value: `${kpi.totalBookings} tickets`, bg: "bg-accent/10" },
+                { icon: <Users className="w-5 h-5 text-indigo-400" />, label: "Registered Users", value: `${kpi.totalUsers} users`, bg: "bg-indigo-600/10" },
+                { icon: <BarChart3 className="w-5 h-5 text-success" />, label: "Planning Rooms", value: `${kpi.activeGroupRooms} active`, bg: "bg-success/10" },
+              ].map(({ icon, label, value, bg }) => (
+                <div key={label} className={cardDark}>
+                  <div className={`p-2.5 rounded-xl w-fit mb-4 ${bg}`}>{icon}</div>
+                  <span className="block text-xs text-neutral-500 font-inter">{label}</span>
+                  <strong className="text-xl sm:text-2xl font-black text-white mt-1.5 block">{value}</strong>
+                </div>
+              ))}
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
+              {/* Daily Revenue */}
+              <div className={cardDark}>
                 <h3 className="font-bold text-sm text-white mb-6 flex items-center gap-2 border-b border-neutral-900 pb-3">
                   <LineChart className="w-4 h-4 text-primary" /> Daily Revenue Trends
                 </h3>
                 <div className="h-48 flex items-end gap-3 justify-around pt-6 font-inter text-[9px] text-neutral-500">
-                  {charts.dailyBookings.map((dbPoint: any, idx: number) => {
-                    const maxVal = Math.max(...charts.dailyBookings.map((p: any) => p.revenue), 1);
-                    const barHeight = Math.max(8, (dbPoint.revenue / maxVal) * 100);
+                  {charts.dailyBookings.map((p: any, idx: number) => {
+                    const maxVal = Math.max(...charts.dailyBookings.map((x: any) => x.revenue), 1);
                     return (
                       <div key={idx} className="flex flex-col items-center gap-2 w-full">
-                        <span className="text-white font-bold">Rs {dbPoint.revenue}</span>
+                        <span className="text-white font-bold">Rs {p.revenue}</span>
                         <div className="w-full bg-neutral-900 rounded-lg overflow-hidden h-32 flex items-end">
-                          <div className="w-full bg-primary rounded-lg transition-all duration-700" style={{ height: `${barHeight}%` }} />
+                          <div className="w-full bg-primary rounded-lg" style={{ height: `${Math.max(8, (p.revenue / maxVal) * 100)}%` }} />
                         </div>
-                        <span className="truncate max-w-10">{dbPoint.date.substring(5)}</span>
+                        <span className="truncate max-w-10">{p.date.substring(5)}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
+              {/* Popular Movies */}
+              <div className={cardDark}>
                 <h3 className="font-bold text-sm text-white mb-6 flex items-center gap-2 border-b border-neutral-900 pb-3">
                   <BarChart3 className="w-4 h-4 text-accent" /> Popular Movies by Revenue
                 </h3>
                 <div className="space-y-4 pt-2">
-                  {charts.popularMovies.slice(0, 4).map((moviePoint: any, idx: number) => {
-                    const maxVal = Math.max(...charts.popularMovies.map((p: any) => p.revenue), 1);
+                  {charts.popularMovies.slice(0, 4).map((p: any, idx: number) => {
+                    const maxVal = Math.max(...charts.popularMovies.map((x: any) => x.revenue), 1);
                     return (
                       <div key={idx} className="space-y-1 font-inter text-xs">
                         <div className="flex justify-between font-semibold">
-                          <span className="text-white">{moviePoint.title}</span>
-                          <span className="text-neutral-500">Rs {moviePoint.revenue} ({moviePoint.bookings})</span>
+                          <span className="text-white">{p.title}</span>
+                          <span className="text-neutral-500">Rs {p.revenue} ({p.bookings})</span>
                         </div>
                         <div className="w-full h-3 bg-neutral-900 rounded-full overflow-hidden">
-                          <div className="h-full bg-accent rounded-full" style={{ width: `${(moviePoint.revenue / maxVal) * 100}%` }} />
+                          <div className="h-full bg-accent rounded-full" style={{ width: `${(p.revenue / maxVal) * 100}%` }} />
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
+              {/* Cities */}
+              <div className={cardDark}>
                 <h3 className="font-bold text-sm text-white mb-6 flex items-center gap-2 border-b border-neutral-900 pb-3">
                   <Compass className="w-4 h-4 text-indigo-400" /> Location Breakdown
                 </h3>
                 <div className="space-y-4 pt-2">
-                  {charts.popularCities.slice(0, 4).map((cityPoint: any, idx: number) => {
-                    const maxVal = Math.max(...charts.popularCities.map((p: any) => p.bookings), 1);
+                  {charts.popularCities.slice(0, 4).map((p: any, idx: number) => {
+                    const maxVal = Math.max(...charts.popularCities.map((x: any) => x.bookings), 1);
                     return (
                       <div key={idx} className="space-y-1 font-inter text-xs">
                         <div className="flex justify-between font-semibold">
-                          <span className="text-white">{cityPoint.name}</span>
-                          <span className="text-neutral-500">{cityPoint.bookings} tickets</span>
+                          <span className="text-white">{p.name}</span>
+                          <span className="text-neutral-500">{p.bookings} tickets</span>
                         </div>
                         <div className="w-full h-3 bg-neutral-900 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(cityPoint.bookings / maxVal) * 100}%` }} />
+                          <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(p.bookings / maxVal) * 100}%` }} />
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
-              <div className="p-6 rounded-2xl bg-card border border-neutral-900">
+              {/* Booking Mix */}
+              <div className={cardDark}>
                 <h3 className="font-bold text-sm text-white mb-6 flex items-center gap-2 border-b border-neutral-900 pb-3">
                   <PieChart className="w-4 h-4 text-success" /> Booking Model Mix
                 </h3>
                 <div className="flex items-center justify-around h-40 pt-4">
-                  {charts.groupBookingUsage.map((usage: any, idx: number) => {
-                    const totalVal = charts.groupBookingUsage.reduce((sum: number, u: any) => sum + u.value, 0) || 1;
-                    const percent = Math.round((usage.value / totalVal) * 100);
+                  {charts.groupBookingUsage.map((u: any, idx: number) => {
+                    const totalVal = charts.groupBookingUsage.reduce((s: number, x: any) => s + x.value, 0) || 1;
                     return (
                       <div key={idx} className="text-center font-inter">
-                        <div className={`text-3xl font-black ${idx === 0 ? "text-primary" : "text-success"}`}>{percent}%</div>
-                        <div className="text-xs text-neutral-500 font-semibold mt-2">{usage.name}</div>
-                        <div className="text-[10px] text-neutral-600 mt-1">{usage.value} bookings</div>
+                        <div className={`text-3xl font-black ${idx === 0 ? "text-primary" : "text-success"}`}>
+                          {Math.round((u.value / totalVal) * 100)}%
+                        </div>
+                        <div className="text-xs text-neutral-500 font-semibold mt-2">{u.name}</div>
+                        <div className="text-[10px] text-neutral-600 mt-1">{u.value} bookings</div>
                       </div>
                     );
                   })}
@@ -424,302 +571,606 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
+        ))}
 
-        {/* ── ADD MOVIE ── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── ADD MOVIE ──────────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
         {activeTab === "add-movie" && (
-          <div className="p-8 rounded-2xl bg-card border border-neutral-900 max-w-3xl mx-auto w-full">
+          <div className={`${cardDark} max-w-3xl mx-auto w-full`}>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <PlusCircle className="w-5 h-5 text-primary" /> Add New Movie Details
+              <PlusCircle className="w-5 h-5 text-primary" /> Add New Movie
             </h2>
             <form onSubmit={handleAddMovie} className="grid grid-cols-1 md:grid-cols-2 gap-5 font-inter text-xs">
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Movie Title</label>
-                <input type="text" required placeholder="e.g. Karuppu" value={movieTitle} onChange={(e) => setMovieTitle(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
+                <FieldLabel>Movie Title</FieldLabel>
+                <input className={inputCls} required placeholder="e.g. Karuppu" value={movieTitle} onChange={e => setMovieTitle(e.target.value)} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Genre Tags</label>
-                <input type="text" required placeholder="e.g. Action/Thriller" value={movieGenre} onChange={(e) => setMovieGenre(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
+                <FieldLabel>Genre Tags</FieldLabel>
+                <input className={inputCls} required placeholder="e.g. Action/Thriller" value={movieGenre} onChange={e => setMovieGenre(e.target.value)} />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Synopsis</label>
-                <textarea required rows={4} placeholder="Write a description..." value={movieDesc} onChange={(e) => setMovieDesc(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white resize-none" />
+                <FieldLabel>Synopsis</FieldLabel>
+                <textarea className={inputCls} required rows={4} placeholder="Write a description..." value={movieDesc} onChange={e => setMovieDesc(e.target.value)} style={{ resize: "none" }} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Language</label>
-                <select value={movieLang} onChange={(e) => setMovieLang(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white">
-                  {["Hindi","Kannada","Tamil","Telugu","Malayalam","English"].map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <FieldLabel>Languages</FieldLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  {MOVIE_LANGUAGES.map(language => {
+                    const selected = movieLangs.includes(language);
+                    return (
+                      <label
+                        key={language}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition-all ${
+                          selected
+                            ? "border-[#d4af37] bg-[#d4af37]/10 text-white"
+                            : "border-neutral-800 bg-neutral-950 text-neutral-500 hover:border-neutral-700"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleMovieLanguage(language)}
+                          className="w-3.5 h-3.5 rounded"
+                        />
+                        <span className="font-bold">{language}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Duration (Minutes)</label>
-                <input type="number" required value={movieDur} onChange={(e) => setMovieDur(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
+                <FieldLabel>Duration (Minutes)</FieldLabel>
+                <input className={inputCls} type="number" required value={movieDur} onChange={e => setMovieDur(e.target.value)} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Censor Rating</label>
-                <select value={movieRating} onChange={(e) => setMovieRating(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white">
+                <FieldLabel>Censor Rating</FieldLabel>
+                <select className={selectCls} value={movieRating} onChange={e => setMovieRating(e.target.value)}>
                   <option value="U">U (Universal)</option>
                   <option value="UA">UA (Parental Guidance)</option>
                   <option value="A">A (Adults Only)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Release Date</label>
-                <input type="date" required value={movieRel} min={getToday()} onChange={(e) => setMovieRel(e.target.value)}
-                  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
+                <FieldLabel>Release Date</FieldLabel>
+                <input className={inputCls} type="date" required value={movieRel} min={getToday()} onChange={e => setMovieRel(e.target.value)} />
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Poster Asset Path</label>
-               <input
-  type="text"
-  value={moviePoster}
-  onChange={(e) => setMoviePoster(e.target.value)}
-  placeholder="Paste poster image URL"
-  className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white"
-/>
-
-{moviePoster && (
-  <div className="mt-4">
-    <img
-      src={moviePoster}
-      alt="Poster Preview"
-      className="w-32 h-48 object-cover rounded-lg border border-neutral-800"
-      onError={(e) => {
-        (e.target as HTMLImageElement).style.display = "none";
-      }}
-    />
-  </div>
-)}
-
+              <div className="md:col-span-2">
+                <FieldLabel>Poster Image URL</FieldLabel>
+                <input className={inputCls} type="text" value={moviePoster} onChange={e => setMoviePoster(e.target.value)} placeholder="Paste poster URL" />
+                {moviePoster && (
+                  <img src={moviePoster} alt="Preview" loading="lazy" decoding="async"
+                    className="mt-3 w-24 h-36 object-cover rounded-lg border border-neutral-800"
+                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                )}
               </div>
-              <div className="flex items-center gap-3.5 mt-6">
-                <input type="checkbox" id="showing" checked={movieShowing} onChange={(e) => setMovieShowing(e.target.checked)}
-                  className="w-4 h-4 rounded bg-neutral-950 border border-neutral-900 text-primary" />
-                <label htmlFor="showing" className="font-bold text-white cursor-pointer">Set as Now Showing</label>
+              <div className="md:col-span-2">
+                <FieldLabel>YouTube Trailer URL (Optional)</FieldLabel>
+                <input
+                  className={inputCls}
+                  type="text"
+                  value={movieTrailer}
+                  onChange={e => setMovieTrailer(e.target.value)}
+                  placeholder="e.g. https://www.youtube.com/watch?v=..."
+                />
+                {movieTrailer && (
+                  <a
+                    href={movieTrailer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold"
+                    style={{ color: "#d4af37" }}
+                  >
+                    ▶ Preview trailer
+                  </a>
+                )}
               </div>
-              <button type="submit" className="md:col-span-2 py-3 bg-primary hover:bg-secondary text-white font-bold font-poppins rounded-xl shadow-xl transition-all text-xs">
-                Add Movie to Catalog
-              </button>
+              <div className="flex items-center gap-3.5 mt-2">
+                <input type="checkbox" id="showing" checked={movieShowing} onChange={e => setMovieShowing(e.target.checked)} className="w-4 h-4 rounded" />
+                <label htmlFor="showing" className="font-bold text-white cursor-pointer text-xs">Set as Now Showing</label>
+              </div>
+              <GoldBtn type="submit" className="md:col-span-2">Add Movie to Catalog</GoldBtn>
             </form>
           </div>
         )}
 
-        {/* ── SCHEDULE SHOWTIME ── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── SCHEDULE SHOW (4-STEP WIZARD) ──────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
         {activeTab === "add-show" && (
-          <div className="p-8 rounded-2xl bg-card border border-neutral-900 max-w-3xl mx-auto w-full">
-            <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" /> Schedule Showtime Slots
-            </h2>
-            <p className="text-[10px] text-neutral-500 font-inter mb-6">Minimum 2 theatre screens required per movie.</p>
-            <form onSubmit={handleAddShow} className="space-y-6 font-inter text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Movie ID</label>
-                  <input type="number" required placeholder="e.g. 1" value={showMovieId} onChange={(e) => setShowMovieId(e.target.value)}
-                    className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Show Date</label>
-                  <input type="date" required value={showDate} min={getToday()} onChange={(e) => handleDateChange(e.target.value)}
-                    className="w-full p-3 bg-neutral-950 border border-neutral-900 rounded-xl focus:border-primary focus:outline-none text-white" />
-                </div>
-              </div>
+          <div className={`${cardDark} max-w-3xl mx-auto w-full`}>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" /> Schedule Showtimes
+              </h2>
+              {wStep > 1 && (
+                <button onClick={resetWizard} className="text-[10px] text-neutral-600 hover:text-neutral-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                  <X className="w-3 h-3" /> Reset
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-neutral-600 font-inter mb-6">Generates 7-day schedules with min. 2 shows/day. Duplicates are skipped automatically.</p>
 
-              <div className="space-y-4">
-                {theatreSlots.map((slot, idx) => (
-                  <div key={idx} className="p-5 rounded-xl border border-neutral-800 bg-neutral-950 space-y-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-black text-primary uppercase tracking-widest">
-                        Theatre Slot #{idx + 1}
-                        {idx < 2 && <span className="ml-2 text-neutral-600 normal-case font-normal">(required)</span>}
-                      </span>
-                      {theatreSlots.length > 2 && (
-                        <button type="button" onClick={() => removeSlot(idx)} className="text-red-500 hover:text-red-400 p-1 rounded-lg">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+            <WizardSteps step={wStep} />
+
+            {/* ── STEP 1: LOCATION ──────────────────────────────────────── */}
+            {wStep === 1 && (
+              <div className="space-y-5">
+                <div
+                  className="p-4 rounded-xl flex items-center gap-3 text-xs font-inter"
+                  style={{ background: "rgba(212,175,55,0.04)", border: "1px solid rgba(212,175,55,0.12)" }}
+                >
+                  <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "#d4af37" }} />
+                  <span className="text-neutral-400">Leave city as <strong className="text-neutral-300">All Cities</strong> to schedule across every location, or pick a specific city to narrow down.</span>
+                </div>
+
+                {/* City */}
+                <div>
+                  <FieldLabel>City {cityList.length > 0 && <span className="text-neutral-600 normal-case font-normal ml-1">({cityList.length} available)</span>}</FieldLabel>
+                  <select
+                    className={selectCls}
+                    value={wCity?.id ?? ""}
+                    onChange={e => {
+                      const found = cityList.find((c: any) => c.id === parseInt(e.target.value));
+                      setWCity(found ?? null);
+                    }}
+                  >
+                    <option value="">— All Cities —</option>
+                    {cityList.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {!wCity && cityList.length > 0 && (
+                    <p className="mt-1.5 text-[10px] text-neutral-600 font-inter">
+                      Shows will be generated across all {cityList.length} cities and their screens.
+                    </p>
+                  )}
+                </div>
+
+                {/* Theatre + Screen — only shown when a specific city is selected */}
+                {wCity && (
+                  <>
+                    <div>
+                      <FieldLabel>
+                        Theatre
+                        {!loadingTheatres && <span className="text-neutral-600 normal-case font-normal ml-1">({wTheatres.length} in {wCity.name})</span>}
+                      </FieldLabel>
+                      {loadingTheatres ? (
+                        <div className={`${inputCls} flex items-center gap-2 text-neutral-600`}>
+                          <div className="w-3 h-3 border border-neutral-600 border-t-[#d4af37] rounded-full animate-spin" /> Loading theatres…
+                        </div>
+                      ) : (
+                        <select
+                          className={selectCls}
+                          value={wTheatre?.id ?? ""}
+                          onChange={e => {
+                            const found = wTheatres.find((t: any) => t.id === parseInt(e.target.value));
+                            setWTheatre(found ?? null);
+                          }}
+                        >
+                          <option value="">— All Theatres in {wCity.name} —</option>
+                          {wTheatres.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Screen</label>
-                        <select value={slot.screenId} onChange={(e) => updateSlot(idx, "screenId", e.target.value)}
-                          disabled={screenOptions.length === 0}
-                          className="w-full p-3 bg-neutral-900 border border-neutral-800 rounded-xl focus:border-primary focus:outline-none text-white disabled:opacity-60">
-                          {screenOptions.length === 0 && <option value="">No screens available</option>}
-                          {screenOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+
+                    <div>
+                      <FieldLabel>
+                        Screen (Optional)
+                        {wTheatre && !loadingScreens && <span className="text-neutral-600 normal-case font-normal ml-1">({wScreens.length} screens)</span>}
+                      </FieldLabel>
+                      {loadingScreens ? (
+                        <div className={`${inputCls} flex items-center gap-2 text-neutral-600`}>
+                          <div className="w-3 h-3 border border-neutral-600 border-t-[#d4af37] rounded-full animate-spin" /> Loading screens…
+                        </div>
+                      ) : (
+                        <select
+                          className={selectCls}
+                          disabled={!wTheatre}
+                          value={wScreen?.id ?? ""}
+                          onChange={e => {
+                            const found = wScreens.find((s: any) => s.id === parseInt(e.target.value));
+                            setWScreen(found ?? null);
+                          }}
+                        >
+                          <option value="">— All Screens —</option>
+                          {wScreens.map((s: any) => <option key={s.id} value={s.id}>Screen {s.number} ({s.type})</option>)}
                         </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-2">Showtime</label>
-                        {(() => {
-                          const available = getAvailableShowtimes(showDate);
-                          return available.length === 0 ? (
-                            <div className="w-full p-3 bg-neutral-900 border border-red-900 rounded-xl text-red-400 text-[10px]">
-                              No more shows today. Pick a future date.
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <GoldBtn onClick={() => setWStep(2)}>
+                  Next: Select Movie <ChevronRight className="w-4 h-4" />
+                </GoldBtn>
+              </div>
+            )}
+
+            {/* ── STEP 2: MOVIE ─────────────────────────────────────────── */}
+            {wStep === 2 && (
+              <div className="space-y-5">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                  <input
+                    className={`${inputCls} pl-9`}
+                    placeholder="Search movies…"
+                    value={wMovieSearch}
+                    onChange={e => setWMovieSearch(e.target.value)}
+                  />
+                </div>
+
+                {filteredMoviesForWizard.length === 0 ? (
+                  <div className="text-center py-10 text-neutral-700 font-inter text-sm">No movies match your search.</div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-1">
+                    {filteredMoviesForWizard.map(movie => (
+                      <div
+                        key={movie.id}
+                        onClick={() => {
+                          setWMovie(movie);
+                          setWShowLanguage(movie.language.split(",")[0]?.trim() || "");
+                        }}
+                        className="cursor-pointer rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
+                        style={{
+                          border: wMovie?.id === movie.id ? "2px solid #d4af37" : "2px solid rgba(255,255,255,0.05)",
+                          boxShadow: wMovie?.id === movie.id ? "0 0 16px rgba(212,175,55,0.2)" : "none",
+                        }}
+                      >
+                        <div className="relative aspect-[2/3] overflow-hidden bg-neutral-900">
+                          <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async"
+                            className="w-full h-full object-cover" />
+                          {wMovie?.id === movie.id && (
+                            <div className="absolute inset-0 flex items-center justify-center"
+                              style={{ background: "rgba(212,175,55,0.15)" }}>
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                                style={{ background: "#d4af37" }}>
+                                <Check className="w-4 h-4 text-black" />
+                              </div>
                             </div>
-                          ) : (
-                            <select value={slot.showTime} onChange={(e) => updateSlot(idx, "showTime", e.target.value)}
-                              className="w-full p-3 bg-neutral-900 border border-neutral-800 rounded-xl focus:border-primary focus:outline-none text-white">
-                              {available.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                          );
-                        })()}
+                          )}
+                        </div>
+                        <div className="p-2 bg-neutral-900">
+                          <p className="font-black text-xs text-white truncate">{movie.title}</p>
+                          <p className="text-[9px] text-neutral-500 font-inter mt-0.5">{movie.language} · {movie.isNowShowing ? "Now Showing" : "Coming Soon"}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <GhostBtn onClick={() => setWStep(1)}>← Back</GhostBtn>
+                  <GoldBtn disabled={!wMovie} onClick={() => setWStep(3)}>
+                    Next: Configure Schedule <ChevronRight className="w-4 h-4" />
+                  </GoldBtn>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: SCHEDULE ──────────────────────────────────────── */}
+            {wStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <FieldLabel>Show Language</FieldLabel>
+                  <select
+                    className={selectCls}
+                    value={wShowLanguage || movieLanguageOptions[0] || ""}
+                    onChange={e => setWShowLanguage(e.target.value)}
+                  >
+                    {movieLanguageOptions.map(language => (
+                      <option key={language} value={language}>{language}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Mode toggle */}
+                <div>
+                  <FieldLabel>Schedule Mode</FieldLabel>
+                  <div className="flex gap-2">
+                    {(["auto7", "custom"] as const).map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setWMode(m)}
+                        className="flex-1 py-3 rounded-xl text-xs font-black transition-all"
+                        style={wMode === m
+                          ? { background: "linear-gradient(135deg,#d4af37,#f4d03f)", color: "#000" }
+                          : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
+                        }
+                      >
+                        {m === "auto7" ? "Auto — Next 7 Days" : "Custom Date"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {wMode === "custom" && (
+                  <div>
+                    <FieldLabel>Select Date</FieldLabel>
+                    <input className={inputCls} type="date" value={wCustomDate} min={getToday()} onChange={e => setWCustomDate(e.target.value)} />
+                  </div>
+                )}
+
+                {/* Show times */}
+                <div>
+                  <FieldLabel>Show Times <span className="text-neutral-600 normal-case font-normal">(min 2)</span></FieldLabel>
+                  <div className="space-y-2">
+                    {wTimes.map((t, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <select
+                          className={`${selectCls} flex-1`}
+                          value={t}
+                          onChange={e => setWTimes(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                        >
+                          {ALL_TIMES.map(at => <option key={at} value={at}>{at}</option>)}
+                        </select>
+                        {wTimes.length > 2 && (
+                          <button onClick={() => setWTimes(prev => prev.filter((_, j) => j !== i))}
+                            className="p-2 rounded-lg hover:bg-red-900/30 text-red-500 transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setWTimes(prev => [...prev, "06:30 PM"])}
+                    className="mt-2 text-xs font-bold flex items-center gap-1 transition-colors"
+                    style={{ color: "rgba(212,175,55,0.6)" }}
+                    onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(212,175,55,0.6)")}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Time Slot
+                  </button>
+                </div>
+
+                {/* Pricing */}
+                <div>
+                  <FieldLabel>Ticket Pricing (Rs)</FieldLabel>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[["Regular", wPriceReg, setWPriceReg], ["Premium", wPricePrem, setWPricePrem], ["Recliner", wPriceRec, setWPriceRec]].map(([label, val, setter]) => (
+                      <div key={label as string}>
+                        <label className="block text-[9px] font-bold text-neutral-600 uppercase mb-1.5">{label as string}</label>
+                        <input className={inputCls} type="number" value={val as string}
+                          onChange={e => (setter as (v: string) => void)(e.target.value)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <GhostBtn onClick={() => setWStep(2)}>← Back</GhostBtn>
+                  <GoldBtn disabled={wTimes.length < 2} onClick={() => setWStep(4)}>
+                    Preview Schedule <ChevronRight className="w-4 h-4" />
+                  </GoldBtn>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 4: PREVIEW & CONFIRM ──────────────────────────────── */}
+            {wStep === 4 && (
+              <div className="space-y-6">
+                {/* Summary card */}
+                <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(212,175,55,0.15)" }}>
+                  <div className="px-5 py-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest"
+                    style={{ background: "rgba(212,175,55,0.06)", borderBottom: "1px solid rgba(212,175,55,0.1)", color: "#d4af37" }}>
+                    <Layers className="w-3.5 h-3.5" /> Schedule Preview
+                  </div>
+                  <div className="p-5 space-y-4">
+                    {/* Movie row */}
+                    <div className="flex items-start gap-4">
+                      <img src={wMovie?.posterUrl} alt={wMovie?.title} loading="lazy" decoding="async"
+                        className="w-12 h-[72px] rounded-lg object-cover flex-shrink-0 border border-neutral-800" />
+                      <div>
+                        <p className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mb-1">Movie</p>
+                        <p className="font-black text-white">{wMovie?.title}</p>
+                        <p className="text-xs text-neutral-500 font-inter">{wMovie?.language}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[["priceReg","Regular"],["pricePrem","Premium"],["priceRec","Recliner"]].map(([field, label]) => (
-                        <div key={field}>
-                          <label className="block text-[8px] font-bold text-neutral-500 uppercase mb-2">{label} (Rs)</label>
-                          <input type="number" required value={slot[field as keyof TheatreSlot]}
-                            onChange={(e) => updateSlot(idx, field as keyof TheatreSlot, e.target.value)}
-                            className="w-full p-3 bg-neutral-900 border border-neutral-800 rounded-xl focus:border-primary focus:outline-none text-white" />
-                        </div>
-                      ))}
+
+                    <div className="h-px bg-neutral-900" />
+
+                    {/* Location + schedule details */}
+                    <div className="grid grid-cols-2 gap-4 text-xs font-inter">
+                      <div>
+                        <p className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mb-1">Location</p>
+                        <p className="text-white font-bold">{wCity ? wCity.name : `All Cities (${cityList.length})`}</p>
+                        <p className="text-neutral-500">{wCity ? (wTheatre?.name ?? "All Theatres") : "All Theatres"}</p>
+                        <p className="text-neutral-600">{wCity && wScreen ? `Screen ${wScreen.number} (${wScreen.type})` : "All Screens"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mb-1">Schedule</p>
+                        <p className="text-white font-bold">{wMode === "auto7" ? "Next 7 days from today" : wCustomDate}</p>
+                        <p className="text-neutral-500">{wTimes.join(" · ")}</p>
+                        <p className="text-neutral-600">{wShowLanguage || movieLanguageOptions[0]} · {wTimes.length} shows/day/screen</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mb-1">Pricing</p>
+                        <p className="text-white">Reg Rs {wPriceReg}</p>
+                        <p className="text-neutral-500">Prem Rs {wPricePrem}</p>
+                        <p className="text-neutral-600">Rec Rs {wPriceRec}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mb-1">Est. Created</p>
+                        <p className="text-3xl font-black" style={{ color: "#d4af37" }}>{estimatedShows}</p>
+                        <p className="text-neutral-600">shows (dupes skipped)</p>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <button type="button" onClick={addSlot}
-                className="w-full py-2.5 border border-dashed border-neutral-700 rounded-xl text-neutral-500 hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2 text-xs font-semibold">
-                <Plus className="w-3.5 h-3.5" /> Add Another Theatre Slot
-              </button>
-              <button type="submit"
-                className="w-full py-3.5 bg-primary hover:bg-secondary text-white font-bold font-poppins rounded-xl shadow-xl transition-all text-xs">
-                Schedule {theatreSlots.length} Showtime Slot{theatreSlots.length > 1 ? "s" : ""}
-              </button>
-            </form>
+                <div className="flex gap-3">
+                  <GhostBtn onClick={() => setWStep(3)}>← Edit</GhostBtn>
+                  <GoldBtn loading={wLoading} onClick={handleGenerateShows} className="flex-1 justify-center">
+                    {typeof estimatedShows === "number"
+                      ? `Confirm & Generate ${estimatedShows} Shows`
+                      : `Confirm & Generate Across All Cities`}
+                  </GoldBtn>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Manage Tab */}
-{activeTab === "manage" && (
-  <div className="space-y-8">
-<div className="grid grid-cols-2 gap-4">
-  <div className="p-4 rounded-xl bg-neutral-900">
-    <p className="text-sm text-neutral-400">Total Movies</p>
-    <h2 className="text-3xl font-bold">{movies.length}</h2>
-  </div>
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── MANAGE DATA ────────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === "manage" && (
+          <div className="space-y-8">
 
-  <div className="p-4 rounded-xl bg-neutral-900">
-    <p className="text-sm text-neutral-400">Total Shows</p>
-    <h2 className="text-3xl font-bold">{shows.length}</h2>
-  </div>
-</div>
-    {/* Movies */}
-    <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Film className="w-5 h-5 text-primary" />
-        Movies
-      </h2>
+            {/* Stats bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total Movies", value: movies.length, color: "text-primary" },
+                { label: "Total Shows", value: shows.length, color: "text-accent" },
+                { label: "Active Shows", value: shows.filter(s => s.status === "active").length, color: "text-green-400" },
+                { label: "Expired Shows", value: shows.filter(s => s.status === "expired").length, color: "text-red-400" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className={`${cardDark} py-4`}>
+                  <p className="text-xs text-neutral-500 font-inter">{label}</p>
+                  <p className={`text-2xl font-black ${color} mt-1`}>{value}</p>
+                </div>
+              ))}
+            </div>
 
-      {movies.length === 0 ? (
-        <p className="text-sm text-neutral-500 py-4 text-center">
-          No movies found.
-        </p>
-      ) : (
-        movies.map((movie) => (
-          <div
-            key={movie.id}
-            className="flex justify-between items-center p-4 rounded-xl bg-neutral-900 border border-neutral-800 mb-3"
-          >
-            <div className="flex items-center gap-4">
-              <img
-                src={movie.posterUrl}
-                alt={movie.title}
-                className="w-16 h-24 rounded-lg object-cover"
-              />
-
-              <div>
-                <h3 className="font-semibold text-white">
-                  {movie.title}
-                </h3>
-
-                <p className="text-sm text-neutral-400">
-                  {movie.genre}
-                </p>
-
-                <p className="text-sm text-neutral-500">
-                  {movie.language}
-                </p>
-
-                <p className="text-xs text-neutral-600">
-                  Movie ID: {movie.id}
-                </p>
+            {/* Search + filter bar */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                <input
+                  className={`${inputCls} pl-9`}
+                  placeholder="Search by movie, theatre, or city…"
+                  value={manageSearch}
+                  onChange={e => setManageSearch(e.target.value)}
+                />
+              </div>
+              <select
+                className={`${selectCls} w-auto min-w-36`}
+                value={manageCityFilter}
+                onChange={e => setManageCityFilter(e.target.value ? parseInt(e.target.value) : "")}
+              >
+                <option value="">All Cities</option>
+                {cityList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <div
+                className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
+                style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.15)", color: "rgba(74,222,128,0.6)" }}
+              >
+                <Clock className="w-3.5 h-3.5" /> Past shows auto-deleted at midnight
               </div>
             </div>
 
-            <button
-              onClick={() => handleDeleteMovie(movie.id)}
-              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg flex items-center gap-2 font-semibold"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </div>
-        ))
-      )}
-    </div>
+            {/* ── MOVIES + SHOWTIMES ───────────────────────────────────────── */}
+            <div className={cardDark}>
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Film className="w-5 h-5 text-primary" /> Movies &amp; Showtimes
+                <span className="text-neutral-600 font-normal text-sm">({filteredMovies.length} movies)</span>
+              </h2>
 
-    {/* Shows */}
-    <div className="p-6 rounded-2xl bg-card border border-neutral-900">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Calendar className="w-5 h-5 text-accent" />
-        Showtime Management
-      </h2>
+              {filteredMovies.length === 0 ? (
+                <p className="text-sm text-neutral-600 py-8 text-center font-inter">
+                  {manageSearch || manageCityFilter ? "No movies match your search." : "No movies found."}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredMovies.map(movie => {
+                    const movieShows = (showsByMovie[movie.id] ?? [])
+                      .slice()
+                      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+                    const isOpen = expandedMovies.has(movie.id);
 
-      {shows.length === 0 ? (
-        <p className="text-sm text-neutral-500 py-4 text-center">
-          No shows found.
-        </p>
-      ) : (
-        Object.entries(groupedShows).map(([movieTitle, movieShows]) => (
-          <div
-            key={movieTitle}
-            className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-4"
-          >
-            <h3 className="text-lg font-bold mb-3">
-              🎬 {movieTitle} ({(movieShows as any[]).length} shows)
-            </h3>
+                    return (
+                      <div key={movie.id} className="rounded-xl border border-neutral-800 overflow-hidden">
+                        {/* Movie header row */}
+                        <div
+                          className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-neutral-900/40 transition-colors"
+                          onClick={() => setExpandedMovies(prev => {
+                            const next = new Set(prev);
+                            if (next.has(movie.id)) next.delete(movie.id); else next.add(movie.id);
+                            return next;
+                          })}
+                        >
+                          <div className="flex items-center gap-3">
+                            <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async"
+                              className="w-9 h-[52px] rounded-lg object-cover flex-shrink-0" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-neutral-500" /> : <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />}
+                                <p className="font-black text-sm text-white">{movie.title}</p>
+                                <span className="text-[10px] text-neutral-600 font-inter">{movie.language} · {movie.genre}</span>
+                              </div>
+                              <p className="text-[10px] text-neutral-600 font-inter ml-5">
+                                {movieShows.length > 0
+                                  ? <span className="text-accent font-bold">{movieShows.length} show{movieShows.length !== 1 ? "s" : ""} scheduled</span>
+                                  : <span className="text-neutral-700">No shows scheduled</span>
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeleteMovie(movie.id); }}
+                            className="p-2 rounded-lg text-red-500 hover:bg-red-900/20 transition-colors flex-shrink-0"
+                            title="Delete movie and all its shows"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
 
-            {(movieShows as any[]).map((show: any) => (
-              <div
-                key={show.id}
-                className="flex justify-between items-center border-t border-neutral-800 py-3"
-              >
-                <div>
-                  <p className="font-medium">
-                    Screen {show.screenId} • Show #{show.id}
-                  </p>
-
-                  <p className="text-sm text-neutral-400">
-                    {show.date} • {show.startTime}
-                  </p>
+                        {/* Show timings */}
+                        {isOpen && (
+                          <div className="border-t border-neutral-800/60 bg-neutral-950/40">
+                            {movieShows.length === 0 ? (
+                              <p className="text-xs text-neutral-700 py-4 text-center font-inter">No shows scheduled for this movie.</p>
+                            ) : (
+                              <div className="divide-y divide-neutral-800/40">
+                                {movieShows.map(show => (
+                                  <div
+                                    key={show.id}
+                                    className="flex items-center justify-between px-5 py-2.5"
+                                  >
+                                    <div className="flex items-center gap-4 min-w-0">
+                                      {/* Date + time */}
+                                      <div className="flex-shrink-0 text-center w-16">
+                                        <p className="text-[10px] font-black text-white">{show.date.substring(5)}</p>
+                                        <p className="text-[10px] text-neutral-500 font-inter">{show.startTime}</p>
+                                      </div>
+                                      <div className="w-px h-8 bg-neutral-800 flex-shrink-0" />
+                                      {/* Screen + theatre */}
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-bold text-white truncate">
+                                          Screen {show.screenNumber}
+                                          <span className="text-[10px] font-normal text-neutral-500 ml-1.5">({show.screenType})</span>
+                                          <span className="text-[10px] font-normal text-neutral-500 ml-1.5">{show.language || show.movieLanguage}</span>
+                                          <span className="text-neutral-600 mx-1.5">·</span>
+                                          {show.theatreName}
+                                        </p>
+                                        <p className="text-[10px] text-neutral-600 font-inter truncate">
+                                          {show.cityName} &nbsp;·&nbsp; Rs {show.priceRegular} / {show.pricePremium} / {show.priceRecliner}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <StatusPill status={show.status} />
+                                      <button
+                                        onClick={() => handleDeleteShow(show.id)}
+                                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-900/20 transition-colors"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <button
-                  onClick={() => handleDeleteShow(show.id)}
-                  className="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all"
-                >
-                  <Trash2 size={12} />
-                  Delete
-                </button>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
-        ))
-      )}
-    </div>
-
-  </div>
-)}
-
+        )}
       </div>
     </div>
   );

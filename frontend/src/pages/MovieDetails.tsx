@@ -16,17 +16,36 @@ import {
 } from "lucide-react";
 import api from "../services/api.js";
 
-const getEmbedUrl = (url?: string) => {
-  if (!url) return null;
-  if (url.includes("youtu.be")) {
-    const id = url.split("youtu.be/")[1]?.split("?")[0];
-    return `https://www.youtube.com/embed/${id}`;
+const getEmbedUrl = (url?: string | null) => {
+  const rawUrl = url?.trim();
+  if (!rawUrl) return null;
+
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.replace(/^www\./, "");
+    let videoId: string | null = null;
+
+    if (host === "youtu.be") {
+      videoId = parsed.pathname.split("/").filter(Boolean)[0] ?? null;
+    } else if (
+      host === "youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com"
+    ) {
+      if (parsed.pathname.startsWith("/embed/")) {
+        videoId = parsed.pathname.split("/").filter(Boolean)[1] ?? null;
+      } else if (parsed.pathname.startsWith("/shorts/") || parsed.pathname.startsWith("/live/")) {
+        videoId = parsed.pathname.split("/").filter(Boolean)[1] ?? null;
+      } else {
+        videoId = parsed.searchParams.get("v");
+      }
+    }
+
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  } catch {
+    if (rawUrl.includes("youtube.com/embed/")) return rawUrl;
   }
-  if (url.includes("watch?v=")) {
-    const id = url.split("watch?v=")[1]?.split("&")[0];
-    return `https://www.youtube.com/embed/${id}`;
-  }
-  if (url.includes("youtube.com/embed")) return url;
+
   return null;
 };
 
@@ -99,6 +118,7 @@ interface Movie {
 
 interface Show {
   id: number;
+  language?: string;
   startTime: string;
   date: string;
   priceRegular: number;
@@ -690,7 +710,7 @@ export const MovieDetails: React.FC = () => {
                               {show.startTime}
                             </span>
                             <span className="block text-[8px] text-neutral-600 font-inter uppercase mt-0.5">
-                              {show.screen?.type}
+                              {show.language ? `${show.language} · ` : ""}{show.screen?.type}
                             </span>
                           </button>
                         ))}

@@ -430,6 +430,8 @@ const MovieCard: React.FC<{
       <img
         src={getImageUrl(movie.posterUrl)}
         alt={movie.title}
+        loading="lazy"
+        decoding="async"
         className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
       />
       {/* HOVER GRADIENT */}

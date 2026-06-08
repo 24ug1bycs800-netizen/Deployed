@@ -27,6 +27,7 @@ export const getSeatsForShow = async (req: Request, res: Response) => {
     const showRows = await db
       .select({
         id: shows.id,
+        language: shows.language,
         startTime: shows.startTime,
         date: shows.date,
         priceRegular: shows.priceRegular,

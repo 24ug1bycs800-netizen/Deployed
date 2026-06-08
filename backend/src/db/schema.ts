@@ -75,15 +75,19 @@ export const shows = pgTable("shows", {
   screenId: integer("screen_id")
     .references(() => screens.id, { onDelete: "cascade" })
     .notNull(),
+  language: varchar("language", { length: 100 }).notNull(),
   startTime: varchar("start_time", { length: 50 }).notNull(), // e.g. "06:30 PM"
   date: varchar("date", { length: 50 }).notNull(),            // e.g. "2026-05-31"
   priceRegular: integer("price_regular").default(150).notNull(),
   pricePremium: integer("price_premium").default(250).notNull(),
   priceRecliner: integer("price_recliner").default(450).notNull(),
+  // "active" = bookable, "expired" = past show (soft delete — preserves booking history)
+  status: varchar("status", { length: 20 }).default("active").notNull(),
 }, (table) => ({
   movieIdIdx: index("shows_movie_id_idx").on(table.movieId),
   screenIdIdx: index("shows_screen_id_idx").on(table.screenId),
   dateIdx: index("shows_date_idx").on(table.date),
+  statusIdx: index("shows_status_idx").on(table.status),
 }));
 
 // SEATS TABLE

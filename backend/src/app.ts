@@ -8,6 +8,7 @@ import movieRoutes from "./routes/movieRoutes";
 import bookingRoutes from "./routes/bookingRoutes";
 import groupRoutes from "./routes/groupRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import { startCleanupScheduler } from "./jobs/cleanupShows";
 
 dotenv.config();
 
@@ -80,4 +81,5 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 app.listen(PORT, () => {
   console.log(`🎬 CineCircle Backend running on http://localhost:${PORT}`);
+  startCleanupScheduler();
 });

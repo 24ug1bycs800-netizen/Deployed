@@ -9,6 +9,8 @@ import {
   Loader,
   ArrowRight,
   Users,
+  Copy,
+  Check,
 } from "lucide-react";
 import api from "../services/api.js";
 
@@ -22,6 +24,7 @@ export const GroupRoomsList: React.FC = () => {
   const [roomNameInput, setRoomNameInput] = useState("");
   const [err, setErr] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const fetchRooms = async () => {
     try {
@@ -55,6 +58,22 @@ export const GroupRoomsList: React.FC = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleCopyCode = async (e: React.MouseEvent, code: string, id: number) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -263,9 +282,17 @@ export const GroupRoomsList: React.FC = () => {
                         {room.name}
                       </h4>
                       <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-[9px] text-neutral-600 font-inter font-mono tracking-widest" style={{ color: "#d4af37" }}>
+                        <span className="text-[9px] font-mono tracking-widest" style={{ color: "#d4af37" }}>
                           {room.inviteCode}
                         </span>
+                        <button
+                          onClick={(e) => handleCopyCode(e, room.inviteCode, room.id)}
+                          className="p-0.5 rounded transition-colors"
+                          style={{ color: copiedId === room.id ? "#4ade80" : "rgba(212,175,55,0.5)" }}
+                          title="Copy invite code"
+                        >
+                          {copiedId === room.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        </button>
                         <span className="text-[9px] text-neutral-700">·</span>
                         <span className="flex items-center gap-0.5 text-[9px] text-neutral-600 font-inter">
                           <Users className="w-2.5 h-2.5" /> {room.membersCount}

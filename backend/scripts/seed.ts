@@ -125,6 +125,7 @@ async function seed() {
           await db.insert(shows).values({
             movieId: mapping.movieId,
             screenId: screen.id,
+            language: "Hindi",
             startTime: time,
             date,
             priceRegular: 150,

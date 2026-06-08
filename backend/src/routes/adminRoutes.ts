@@ -3,44 +3,48 @@ import {
   getDashboardStats,
   addMovie,
   addShow,
+  addTheatre,
+  addScreen,
   generateShows,
   deleteMovie,
   deleteShow,
+  bulkDeleteShows,
+  expireShows,
   getAllCities,
   getAllMovies,
   getAllTheatres,
+  getAllScreens,
   getAllShows,
-  getAllScreens
 } from "../controllers/adminController";
 import { authenticateJWT, requireAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
-console.log({
-  getAllMovies,
-  getAllShows,
-});
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
 router.get('/stats', authenticateJWT, requireAdmin, getDashboardStats);
 
-router.get("/cities", authenticateJWT, requireAdmin, getAllCities);
-router.get("/theatres", authenticateJWT, requireAdmin, getAllTheatres);
-router.post('/movies', authenticateJWT, requireAdmin, addMovie);
-router.post('/shows', authenticateJWT, requireAdmin, addShow);
-router.post("/generate-shows", authenticateJWT, requireAdmin, generateShows);
+// ── Read ──────────────────────────────────────────────────────────────────────
+router.get('/cities',   authenticateJWT, requireAdmin, getAllCities);
+router.get('/theatres', authenticateJWT, requireAdmin, getAllTheatres);
+router.get('/screens',  authenticateJWT, requireAdmin, getAllScreens);
+router.get('/movies',   authenticateJWT, requireAdmin, getAllMovies);
+router.get('/shows',    authenticateJWT, requireAdmin, getAllShows);
 
-router.delete(
-  '/movies/:id',
-  authenticateJWT,
-  requireAdmin,
-  deleteMovie
-);
+// ── Create ────────────────────────────────────────────────────────────────────
+router.post('/movies',         authenticateJWT, requireAdmin, addMovie);
+router.post('/shows',          authenticateJWT, requireAdmin, addShow);
+router.post('/theatres',       authenticateJWT, requireAdmin, addTheatre);
+router.post('/screens',        authenticateJWT, requireAdmin, addScreen);
+router.post('/generate-shows', authenticateJWT, requireAdmin, generateShows);
 
-router.delete(
-  '/shows/:id',
-  authenticateJWT,
-  requireAdmin,
-  deleteShow
-);
-router.get("/movies", authenticateJWT, requireAdmin, getAllMovies);
-router.get("/shows", authenticateJWT, requireAdmin, getAllShows);
-router.get("/screens", authenticateJWT, requireAdmin, getAllScreens);
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+// Soft-expires all shows whose date < today (preserves booking history)
+router.post('/shows/expire', authenticateJWT, requireAdmin, expireShows);
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+router.delete('/movies/:id',  authenticateJWT, requireAdmin, deleteMovie);
+router.delete('/shows/:id',   authenticateJWT, requireAdmin, deleteShow);
+// Bulk delete by scope: { scope: 'screen'|'theatre'|'city', scopeId: number }
+router.delete('/shows/bulk',  authenticateJWT, requireAdmin, bulkDeleteShows);
+
 export default router;
